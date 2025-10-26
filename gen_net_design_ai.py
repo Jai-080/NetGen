@@ -282,6 +282,110 @@ def run_episode(env: GraphEnv, policy: EdgePolicy, gamma=0.99) -> Tuple[Episode,
     return Episode(ep_logps, ep_rewards), env.G.copy(), info_final
 
 
+def generate_topology(devices, topology_type):
+    """Generate network based on specified topology"""
+    nodes = make_nodes(devices)
+    node_types = {i: t for i, t in nodes}
+    G = nx.Graph()
+    G.add_nodes_from([i for i, _ in nodes])
+    
+    all_nodes = [i for i, _ in nodes]
+    n = len(all_nodes)
+    
+    if topology_type == "star":
+        # Star topology: one central node connected to all others
+        center = all_nodes[0]
+        for node in all_nodes[1:]:
+            G.add_edge(center, node)
+    
+    elif topology_type == "ring":
+        # Ring topology: nodes connected in a circle
+        for i in range(n):
+            G.add_edge(all_nodes[i], all_nodes[(i + 1) % n])
+    
+    elif topology_type == "mesh":
+        # Mesh topology: every node connected to every other node
+        for i in range(n):
+            for j in range(i + 1, n):
+                G.add_edge(all_nodes[i], all_nodes[j])
+    
+    elif topology_type == "tree":
+        # Tree topology: hierarchical structure with switch-to-lower-device connections
+        servers = [i for i, t in node_types.items() if t == "Server"]
+        switches = [i for i, t in node_types.items() if t == "Switch"]
+        routers = [i for i, t in node_types.items() if t == "Router"]
+        end_devices = [i for i, t in node_types.items() if t == "EndDevice"]
+        
+        # Connect servers to switches
+        for i, server in enumerate(servers):
+            if i < len(switches):
+                G.add_edge(server, switches[i])
+        
+        # Ensure every switch connects to at least one lower level device
+        lower_devices = routers + end_devices
+        for i, switch in enumerate(switches):
+            if i < len(lower_devices):
+                G.add_edge(switch, lower_devices[i])
+        
+        # Connect remaining devices in tree structure
+        remaining_devices = []
+        if len(servers) > len(switches):
+            remaining_devices.extend(servers[len(switches):])
+        if len(switches) > len(lower_devices):
+            remaining_devices.extend(switches[len(lower_devices):])
+        if len(lower_devices) > len(switches):
+            remaining_devices.extend(lower_devices[len(switches):])
+        
+        # Connect remaining devices to existing tree
+        for device in remaining_devices:
+            if all_nodes:
+                # Connect to first available node
+                G.add_edge(device, all_nodes[0])
+    
+    elif topology_type == "bus":
+        # Bus topology: linear connection
+        for i in range(n - 1):
+            G.add_edge(all_nodes[i], all_nodes[i + 1])
+    
+    elif topology_type == "hybrid":
+        # Hybrid topology: combination of star and ring with switch-to-lower-device connections
+        servers = [i for i, t in node_types.items() if t == "Server"]
+        switches = [i for i, t in node_types.items() if t == "Switch"]
+        routers = [i for i, t in node_types.items() if t == "Router"]
+        end_devices = [i for i, t in node_types.items() if t == "EndDevice"]
+        
+        if n >= 4:
+            # Create a central hub with some nodes
+            hub_size = min(3, n // 2)
+            center = all_nodes[0]
+            
+            # Star part
+            for i in range(1, hub_size + 1):
+                if i < n:
+                    G.add_edge(center, all_nodes[i])
+            
+            # Ring part with remaining nodes
+            remaining = all_nodes[hub_size + 1:]
+            if len(remaining) >= 2:
+                for i in range(len(remaining)):
+                    G.add_edge(remaining[i], remaining[(i + 1) % len(remaining)])
+                # Connect ring to star
+                if remaining:
+                    G.add_edge(all_nodes[1], remaining[0])
+        else:
+            # Fallback to star for small networks
+            center = all_nodes[0]
+            for node in all_nodes[1:]:
+                G.add_edge(center, node)
+        
+        # Ensure every switch connects to at least one lower level device
+        lower_devices = routers + end_devices
+        for i, switch in enumerate(switches):
+            if lower_devices and i < len(lower_devices):
+                G.add_edge(switch, lower_devices[i])
+    
+    return G, node_types
+
 def train_policy(devices, constraints, episodes=100, lr=1e-3):
     env = GraphEnv(devices, constraints)
     policy = EdgePolicy()

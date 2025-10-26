@@ -17,6 +17,7 @@ def generate_network():
         switches = int(data.get('switches', 0))
         routers = int(data.get('routers', 0))
         end_devices = int(data.get('end_devices', 0))
+        topology = data.get('topology', 'hybrid')
         episodes = 50  # Fixed episodes for consistent performance
         
         # Validate that at least one device is specified
@@ -40,15 +41,16 @@ def generate_network():
             devices.append(("EndDevice", end_devices))
         constraints = Constraints.from_strings(["connected", "server switch"])
         
-        # Train and generate network
-        policy, best_graph, best_reward = train_policy(devices, constraints, episodes=episodes)
+        # Generate network based on topology
+        best_graph, node_types = generate_topology(devices, topology)
+        best_reward = 1.0  # Fixed reward for predefined topologies
         
         # Create node type mapping
         nodes = make_nodes(devices)
         node_types = {i: t for i, t in nodes}
         
         # Generate network data for visualization
-        network_data = generate_network_data(best_graph, node_types)
+        network_data = generate_network_data(best_graph, node_types, topology)
         
         return jsonify({
             'success': True,
@@ -64,7 +66,7 @@ def generate_network():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
-def generate_network_data(graph, node_types):
+def generate_network_data(graph, node_types, topology='hybrid'):
     # Image mapping for device types
     images = {
         "Server": "static/assets/server.png",
@@ -89,26 +91,116 @@ def generate_network_data(graph, node_types):
             nodes_by_type[node_type].append(node)
     
     nodes_data = []
-    for node in graph.nodes():
-        node_type = node_types.get(node, "Unknown")
+    
+    if topology == 'star':
+        # Circular arrangement for star topology
+        import math
+        all_nodes = list(graph.nodes())
+        n = len(all_nodes)
         
-        # Calculate position
-        y_pos = hierarchy_levels.get(node_type, 0)
-        type_nodes = nodes_by_type.get(node_type, [node])
-        x_spacing = 150
-        x_offset = (len(type_nodes) - 1) * x_spacing / 2
-        x_pos = (type_nodes.index(node) * x_spacing) - x_offset
+        if n > 1:
+            # Center node (first node)
+            center_node = all_nodes[0]
+            center_type = node_types.get(center_node, "Unknown")
+            nodes_data.append({
+                'id': center_node,
+                'label': f"{center_type}\n{center_node}",
+                'image': images.get(center_type, ""),
+                'shape': 'image',
+                'size': 50,  # Larger center node
+                'x': 0,
+                'y': 0,
+                'physics': False
+            })
+            
+            # Arrange other nodes in circle
+            radius = 300
+            for i, node in enumerate(all_nodes[1:]):
+                angle = 2 * math.pi * i / (n - 1)
+                x_pos = radius * math.cos(angle)
+                y_pos = radius * math.sin(angle)
+                
+                node_type = node_types.get(node, "Unknown")
+                nodes_data.append({
+                    'id': node,
+                    'label': f"{node_type}\n{node}",
+                    'image': images.get(node_type, ""),
+                    'shape': 'image',
+                    'size': 40,
+                    'x': x_pos,
+                    'y': y_pos,
+                    'physics': False
+                })
+        else:
+            # Single node case
+            node = all_nodes[0]
+            node_type = node_types.get(node, "Unknown")
+            nodes_data.append({
+                'id': node,
+                'label': f"{node_type}\n{node}",
+                'image': images.get(node_type, ""),
+                'shape': 'image',
+                'size': 40,
+                'x': 0,
+                'y': 0,
+                'physics': False
+            })
+    
+    elif topology == 'ring':
+        # Ring arrangement - all nodes in a circle
+        import math
+        all_nodes = list(graph.nodes())
+        n = len(all_nodes)
         
-        nodes_data.append({
-            'id': node,
-            'label': f"{node_type}\n{node}",
-            'image': images.get(node_type, ""),
-            'shape': 'image',
-            'size': 40,
-            'x': x_pos,
-            'y': y_pos,
-            'physics': False
-        })
+        radius = 250
+        for i, node in enumerate(all_nodes):
+            angle = 2 * math.pi * i / n
+            x_pos = radius * math.cos(angle)
+            y_pos = radius * math.sin(angle)
+            
+            node_type = node_types.get(node, "Unknown")
+            nodes_data.append({
+                'id': node,
+                'label': f"{node_type}\n{node}",
+                'image': images.get(node_type, ""),
+                'shape': 'image',
+                'size': 40,
+                'x': x_pos,
+                'y': y_pos,
+                'physics': False
+            })
+    
+
+    else:
+        # Default hierarchical layout for other topologies
+        for node in graph.nodes():
+            node_type = node_types.get(node, "Unknown")
+            
+            # Calculate position with wider spacing for mesh topology
+            y_pos = hierarchy_levels.get(node_type, 0)
+            type_nodes = nodes_by_type.get(node_type, [node])
+            
+            # Use wider spacing for mesh topology
+            if topology == 'mesh':
+                x_spacing = 250  # Wider spacing for mesh
+            else:
+                x_spacing = 150  # Normal spacing
+                
+            x_offset = (len(type_nodes) - 1) * x_spacing / 2
+            x_pos = (type_nodes.index(node) * x_spacing) - x_offset
+            
+            nodes_data.append({
+                'id': node,
+                'label': f"{node_type}\n{node}",
+                'image': images.get(node_type, ""),
+                'shape': 'image',
+                'size': 40,
+                'x': x_pos,
+                'y': y_pos,
+                'physics': False
+            })
+        
+
     
     edges_data = []
     for edge in graph.edges():
