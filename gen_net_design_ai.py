@@ -316,10 +316,10 @@ def generate_topology(devices, topology_type):
         routers = [i for i, t in node_types.items() if t == "Router"]
         end_devices = [i for i, t in node_types.items() if t == "EndDevice"]
         
-        # Connect servers to switches
-        for i, server in enumerate(servers):
-            if i < len(switches):
-                G.add_edge(server, switches[i])
+        # Connect all switches to servers
+        for switch in switches:
+            for server in servers:
+                G.add_edge(server, switch)
         
         # Ensure every switch connects to at least one lower level device
         lower_devices = routers + end_devices

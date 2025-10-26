@@ -42,6 +42,11 @@ def generate_network():
         constraints = Constraints.from_strings(["connected", "server switch"])
         
         # Generate network based on topology
+        if topology == 'random':
+            import random
+            topology_options = ['hybrid', 'star', 'ring', 'mesh', 'tree', 'bus']
+            topology = random.choice(topology_options)
+        
         best_graph, node_types = generate_topology(devices, topology)
         best_reward = 1.0  # Fixed reward for predefined topologies
         
@@ -56,7 +61,6 @@ def generate_network():
             'success': True,
             'network': network_data,
             'stats': {
-                'reward': round(best_reward, 3),
                 'nodes': best_graph.number_of_nodes(),
                 'edges': best_graph.number_of_edges(),
                 'connected': nx.is_connected(best_graph)
@@ -65,6 +69,60 @@ def generate_network():
         
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
+
+def get_topology_recommendation(servers, switches, routers, end_devices):
+    """Recommend best topology based on device parameters"""
+    total_devices = servers + switches + routers + end_devices
+    
+    # Check for hierarchical structure (servers + switches + lower devices)
+    has_hierarchy = servers > 0 and switches > 0 and (routers > 0 or end_devices > 0)
+    
+    # Check for peer-to-peer (no servers or switches)
+    is_peer_to_peer = servers == 0 and switches == 0
+    
+    # Check for single device type dominance
+    device_types = sum([1 for count in [servers, switches, routers, end_devices] if count > 0])
+    
+    if total_devices <= 2:
+        return {
+            "message": "Bus topology is recommended for very small networks (≤2 devices) with simple linear connection.",
+            "topology": "bus"
+        }
+    elif total_devices == 3:
+        return {
+            "message": "Star topology is recommended for small networks (3 devices) as it's simple and centralized.",
+            "topology": "star"
+        }
+    elif has_hierarchy and device_types >= 3:
+        return {
+            "message": "Tree topology is recommended for hierarchical networks with servers, switches, and lower-level devices.",
+            "topology": "tree"
+        }
+    elif total_devices >= 8 and device_types >= 2:
+        return {
+            "message": "Mesh topology is recommended for large networks (≥8 devices) to ensure high redundancy and fault tolerance.",
+            "topology": "mesh"
+        }
+    elif is_peer_to_peer and total_devices >= 4:
+        return {
+            "message": "Ring topology is recommended for peer-to-peer networks without hierarchical structure.",
+            "topology": "ring"
+        }
+    elif total_devices >= 4 and total_devices <= 7 and device_types >= 2:
+        return {
+            "message": "Hybrid topology is recommended for medium networks that need both centralized and distributed connectivity.",
+            "topology": "hybrid"
+        }
+    elif servers > 0 and total_devices <= 6:
+        return {
+            "message": "Star topology is recommended when you have servers that need to centrally connect to other devices.",
+            "topology": "star"
+        }
+    else:
+        return {
+            "message": "Bus topology is recommended for simple linear connections between devices.",
+            "topology": "bus"
+        }
 
 def generate_network_data(graph, node_types, topology='hybrid'):
     # Image mapping for device types

@@ -216,6 +216,8 @@
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
         }
         
+
+        
         .loading {
             position: absolute;
             top: 50%;
@@ -287,6 +289,7 @@
                     <option value="mesh">Mesh</option>
                     <option value="tree">Tree</option>
                     <option value="bus">Bus</option>
+                    <option value="random">Random</option>
                 </select>
             </div>
             
@@ -301,10 +304,6 @@
             <div class="stats" id="stats" style="display: none;">
                 <h3>Network Statistics</h3>
                 <div class="stat-item">
-                    <span>Reward Score:</span>
-                    <span id="reward">-</span>
-                </div>
-                <div class="stat-item">
                     <span>Total Nodes:</span>
                     <span id="nodes">-</span>
                 </div>
@@ -317,6 +316,8 @@
                     <span id="connected">-</span>
                 </div>
             </div>
+            
+
         </div>
         
         <div class="main-content">
@@ -367,7 +368,6 @@
             const loading = document.getElementById('loading');
             const errorDiv = document.getElementById('error-message');
             const statsDiv = document.getElementById('stats');
-            
             // Show loading
             button.disabled = true;
             loading.style.display = 'block';
@@ -405,7 +405,6 @@
                     updateNetwork(data.network);
                     
                     // Update stats
-                    document.getElementById('reward').textContent = data.stats.reward;
                     document.getElementById('nodes').textContent = data.stats.nodes;
                     document.getElementById('edges').textContent = data.stats.edges;
                     document.getElementById('connected').textContent = data.stats.connected ? '✅ Yes' : '❌ No';
@@ -514,6 +513,8 @@
         function hideWelcome() {
             document.getElementById('welcome-screen').style.display = 'none';
         }
+        
+
         
         function validateInputs() {
             const servers = parseInt(document.getElementById('servers').value);
