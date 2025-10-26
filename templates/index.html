@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NetGen - AI Network Design Generator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/vis-network.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/dist/vis-network.min.css">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #2c3e50, #34495e);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+        .header p {
+            margin: 10px 0 0 0;
+            opacity: 0.8;
+        }
+        .content {
+            display: flex;
+            min-height: 600px;
+        }
+        .controls {
+            width: 350px;
+            padding: 30px;
+            background: #f8f9fa;
+            border-right: 1px solid #e9ecef;
+        }
+        .form-group {
+            margin-bottom: 25px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+        }
+        .generate-btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .generate-btn:hover {
+            transform: translateY(-2px);
+        }
+        .generate-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .visualization {
+            flex: 1;
+            position: relative;
+        }
+        #network {
+            width: 100%;
+            height: 600px;
+            background: #2c3e50;
+        }
+        .stats {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255,255,255,0.95);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            min-width: 200px;
+        }
+        .stats h3 {
+            margin: 0 0 10px 0;
+            color: #2c3e50;
+        }
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 18px;
+            display: none;
+        }
+        .error {
+            color: #e74c3c;
+            margin-top: 10px;
+            padding: 10px;
+            background: #fdf2f2;
+            border-radius: 5px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🌐 NetGen</h1>
+            <p>AI-Powered Network Design Generator</p>
+        </div>
+        
+        <div class="content">
+            <div class="controls">
+                <div class="form-group">
+                    <label for="servers">Number of Servers:</label>
+                    <input type="number" id="servers" min="1" max="10" value="3">
+                </div>
+                
+                <div class="form-group">
+                    <label for="routers">Number of Routers:</label>
+                    <input type="number" id="routers" min="1" max="10" value="2">
+                </div>
+                
+                <div class="form-group">
+                    <label for="switches">Number of Switches:</label>
+                    <input type="number" id="switches" min="1" max="10" value="2">
+                </div>
+                
+                <div class="form-group">
+                    <label for="endDevices">Number of End Devices:</label>
+                    <input type="number" id="endDevices" min="1" max="10" value="2">
+                </div>
+                
+                <div class="form-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="serverSwitchOnly" checked>
+                        <label for="serverSwitchOnly">Servers connect only to switches</label>
+                    </div>
+                </div>
+                
+                <button class="generate-btn" onclick="generateNetwork()">
+                    🚀 Generate Network
+                </button>
+                
+                <div class="error" id="error"></div>
+            </div>
+            
+            <div class="visualization">
+                <div id="network"></div>
+                <div class="loading" id="loading">🤖 AI is designing your network...</div>
+                <div class="stats" id="stats" style="display: none;">
+                    <h3>📊 Network Stats</h3>
+                    <div class="stat-item">
+                        <span>Nodes:</span>
+                        <span id="stat-nodes">-</span>
+                    </div>
+                    <div class="stat-item">
+                        <span>Edges:</span>
+                        <span id="stat-edges">-</span>
+                    </div>
+                    <div class="stat-item">
+                        <span>Connected:</span>
+                        <span id="stat-connected">-</span>
+                    </div>
+                    <div class="stat-item">
+                        <span>Is Tree:</span>
+                        <span id="stat-tree">-</span>
+                    </div>
+                    <div class="stat-item">
+                        <span>AI Score:</span>
+                        <span id="stat-reward">-</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let network = null;
+
+        async function generateNetwork() {
+            const btn = document.querySelector('.generate-btn');
+            const loading = document.getElementById('loading');
+            const error = document.getElementById('error');
+            const stats = document.getElementById('stats');
+            
+            // Show loading
+            btn.disabled = true;
+            btn.textContent = '🤖 Generating...';
+            loading.style.display = 'block';
+            error.style.display = 'none';
+            stats.style.display = 'none';
+            
+            try {
+                const response = await fetch('/generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        servers: parseInt(document.getElementById('servers').value),
+                        routers: parseInt(document.getElementById('routers').value),
+                        switches: parseInt(document.getElementById('switches').value),
+                        endDevices: parseInt(document.getElementById('endDevices').value),
+                        serverSwitchOnly: document.getElementById('serverSwitchOnly').checked
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Create network visualization
+                    const container = document.getElementById('network');
+                    const networkData = {
+                        nodes: new vis.DataSet(data.nodes),
+                        edges: new vis.DataSet(data.edges)
+                    };
+                    
+                    const options = {
+                        physics: {
+                            enabled: true,
+                            stabilization: { iterations: 100 }
+                        },
+                        nodes: {
+                            font: { color: 'white' }
+                        }
+                    };
+                    
+                    network = new vis.Network(container, networkData, options);
+                    
+                    // Update stats
+                    document.getElementById('stat-nodes').textContent = data.stats.nodes;
+                    document.getElementById('stat-edges').textContent = data.stats.edges;
+                    document.getElementById('stat-connected').textContent = data.stats.connected ? '✅' : '❌';
+                    document.getElementById('stat-tree').textContent = data.stats.is_tree ? '✅' : '❌';
+                    document.getElementById('stat-reward').textContent = data.stats.reward.toFixed(3);
+                    
+                    stats.style.display = 'block';
+                } else {
+                    error.textContent = 'Error: ' + data.error;
+                    error.style.display = 'block';
+                }
+            } catch (err) {
+                error.textContent = 'Network error: ' + err.message;
+                error.style.display = 'block';
+            } finally {
+                // Hide loading
+                btn.disabled = false;
+                btn.textContent = '🚀 Generate Network';
+                loading.style.display = 'none';
+            }
+        }
+
+        // Generate initial network
+        window.onload = () => {
+            generateNetwork();
+        };
+    </script>
+</body>
+</html>

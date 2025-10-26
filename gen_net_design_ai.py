@@ -22,6 +22,8 @@ from __future__ import annotations
 import json
 import math
 import random
+import webbrowser
+import os
 from dataclasses import dataclass
 from typing import Dict, List, Tuple, Optional
 
@@ -131,10 +133,10 @@ class GraphEnv:
     def _state(self):
         # Simple state: degree + one-hot type for each node (aggregated pairwise later by policy)
         degs = {i: self.G.degree(i) for i in self.G.nodes}
-        type_map = {"Server": 0, "Router": 1, "Switch": 2}
+        type_map = {"Server": 0, "Router": 1, "Switch": 2, "EndDevice": 3}
         features = []
         for i in range(self.n):
-            tvec = [0, 0, 0]
+            tvec = [0, 0, 0, 0]  # Updated to handle 4 device types
             tvec[type_map.get(self.type_of[i], 1)] = 1
             features.append([degs[i]] + tvec)
         return torch.tensor(features, dtype=torch.float32)
@@ -189,7 +191,7 @@ class GraphEnv:
 # -----------------------------
 
 class EdgePolicy(nn.Module):
-    def __init__(self, node_feat_dim=4, hidden=64):
+    def __init__(self, node_feat_dim=5, hidden=64):  # Updated to 5 features (degree + 4 device types)
         super().__init__()
         # We embed nodes, then score a pair (u,v)
         self.node_mlp = nn.Sequential(
@@ -227,221 +229,196 @@ def select_action(policy: EdgePolicy, state: torch.Tensor, valid_edges: List[Tup
     if not valid_edges:
         return None, None
     
-    if training:
-        scores = policy(state, valid_edges)
-        probs = torch.softmax(scores, dim=0)
-        m = torch.distributions.Categorical(probs)
-        idx = m.sample()
-        logp = m.log_prob(idx)
-        action = valid_edges[int(idx.item())]
-        return action, logp
-    else:
-        with torch.no_grad():
-            scores = policy(state, valid_edges)
-            probs = torch.softmax(scores, dim=0)
-            m = torch.distributions.Categorical(probs)
-            idx = m.sample()
-            logp = m.log_prob(idx)
-            action = valid_edges[int(idx.item())]
-            return action, logp
+    scores = policy(state, valid_edges)
+    probs = torch.softmax(scores, dim=0)
+    m = torch.distributions.Categorical(probs)
+    idx = m.sample()
+    logp = m.log_prob(idx)
+    action = valid_edges[int(idx.item())]
+    return action, logp
 
 
 def run_episode(env: GraphEnv, policy: EdgePolicy, gamma=0.99) -> Tuple[Episode, nx.Graph, Dict]:
     state = env.reset()
     ep_logps, ep_rewards = [], []
     info_final = {}
+    
     while True:
         valid_edges = env.valid_actions()
         if not valid_edges:
             # no action possible; end episode
             _, r, term, info = env._evaluate()
-            info_final = info
             ep_rewards.append(r)
+            info_final = info
             break
+        
         action, logp = select_action(policy, state, valid_edges)
         if action is None:
-            _, r, term, info = env._evaluate()
-            info_final = info
-            ep_rewards.append(r)
             break
+        
         state, reward, done, info = env.step(action)
         ep_logps.append(logp)
         ep_rewards.append(reward)
-        info_final = info
+        
         if done:
+            info_final = info
             break
     
-    episode = Episode(logps=ep_logps, rewards=ep_rewards)
-    return episode, env.G.copy(), info_final
+    return Episode(ep_logps, ep_rewards), env.G.copy(), info_final
 
 
-def compute_returns(rewards: List[float], gamma=0.99) -> List[float]:
-    """Compute discounted returns."""
-    returns = []
-    G = 0
-    for r in reversed(rewards):
-        G = r + gamma * G
-        returns.append(G)
-    return list(reversed(returns))
-
-
-def train_policy(policy: EdgePolicy, episodes: List[Episode], optimizer, gamma=0.99):
-    """REINFORCE update."""
-    policy_loss = 0
-    has_gradients = False
-    
-    for ep in episodes:
-        if not ep.logps:  # Skip episodes with no actions
-            continue
-            
-        returns = compute_returns(ep.rewards, gamma)
-        returns = torch.tensor(returns, dtype=torch.float32)
-        # Normalize returns
-        if len(returns) > 1:
-            returns = (returns - returns.mean()) / (returns.std() + 1e-8)
-        
-        for logp, G in zip(ep.logps, returns[:len(ep.logps)]):
-            policy_loss -= logp * G
-            has_gradients = True
-    
-    if has_gradients:
-        optimizer.zero_grad()
-        policy_loss.backward()
-        optimizer.step()
-        return policy_loss.item()
-    else:
-        return 0.0
-
-
-def main():
-    """Main training loop and demonstration."""
-    # Example configuration
-    devices = [("Server", 3), ("Router", 2), ("Switch", 2)]
-    constraints = Constraints.from_strings(["tree", "connected", "servers_connect_only_to_switches"])
-    
-    print(f"Devices: {devices}")
-    print(f"Constraints: tree={constraints.must_be_tree}, connected={constraints.must_be_connected}, server-switch={constraints.servers_connect_only_to_switches}")
-    
-    # Initialize environment and policy
+def train_policy(devices, constraints, episodes=100, lr=1e-3):
     env = GraphEnv(devices, constraints)
-    policy = EdgePolicy(node_feat_dim=4, hidden=32)
-    optimizer = optim.Adam(policy.parameters(), lr=0.01)
+    policy = EdgePolicy()
+    optimizer = optim.Adam(policy.parameters(), lr=lr)
     
     best_graph = None
     best_reward = float('-inf')
     
-    # Training loop
-    print("\nStarting training...")
-    for epoch in range(50):
-        episodes = []
-        total_reward = 0
+    for ep in range(episodes):
+        episode, graph, info = run_episode(env, policy)
         
-        # Collect episodes
-        for _ in range(5):
-            episode, graph, info = run_episode(env, policy)
-            episodes.append(episode)
-            ep_reward = sum(episode.rewards)
-            total_reward += ep_reward
+        # Calculate returns
+        returns = []
+        G = 0
+        for r in reversed(episode.rewards):
+            G = r + 0.99 * G
+            returns.insert(0, G)
+        
+        # Policy gradient update
+        if episode.logps:
+            returns = torch.tensor(returns, dtype=torch.float32)
+            if len(returns) > 1:
+                returns = (returns - returns.mean()) / (returns.std() + 1e-8)
             
-            # Track best graph
-            if ep_reward > best_reward:
-                best_reward = ep_reward
-                best_graph = graph.copy()
-                # Add node types to the graph
-                for node_id, node_type in env.nodes:
-                    best_graph.nodes[node_id]['type'] = node_type
-        
-        # Train policy
-        loss = train_policy(policy, episodes, optimizer)
-        avg_reward = total_reward / len(episodes)
-        
-        if epoch % 10 == 0:
-            print(f"Epoch {epoch}: Avg Reward = {avg_reward:.3f}, Loss = {loss:.3f}")
-    
-    print(f"\nTraining completed. Best reward: {best_reward:.3f}")
-    
-    # Display best network
-    if best_graph:
-        print("\nBest Network Design:")
-        print(f"Nodes: {best_graph.number_of_nodes()}")
-        print(f"Edges: {best_graph.number_of_edges()}")
-        print(f"Connected: {nx.is_connected(best_graph)}")
-        print(f"Is Tree: {nx.is_tree(best_graph)}")
+            policy_loss = []
+            for logp, ret in zip(episode.logps, returns):
+                policy_loss.append(-logp * ret)
             
-        print("\nNode Details:")
-        for node in best_graph.nodes(data=True):
-            node_id, data = node
-            node_type = data.get('type', 'Unknown')
-            degree = best_graph.degree(node_id)
-            print(f"  Node {node_id}: {node_type} (degree: {degree})")
+            optimizer.zero_grad()
+            loss = torch.stack(policy_loss).sum()
+            loss.backward()
+            optimizer.step()
         
-        print("\nEdges:")
-        for u, v in best_graph.edges():
-            u_type = best_graph.nodes[u].get('type', 'Unknown')
-            v_type = best_graph.nodes[v].get('type', 'Unknown')
-            print(f"  {u}({u_type}) -- {v}({v_type})")
+        total_reward = sum(episode.rewards)
+        if total_reward > best_reward:
+            best_reward = total_reward
+            best_graph = graph
         
-        # Export to JSON
-        graph_data = {
-            'nodes': [{'id': n, 'type': best_graph.nodes[n].get('type', 'Unknown')} for n in best_graph.nodes()],
-            'edges': [{'source': u, 'target': v} for u, v in best_graph.edges()]
-        }
-        
-        with open('best_network.json', 'w') as f:
-            json.dump(graph_data, f, indent=2)
-        print("\nNetwork exported to 'best_network.json'")
-        
-        # Create interactive visualization
-        visualize_network(best_graph)
+        if ep % 20 == 0:
+            print(f"Episode {ep}: Reward={total_reward:.3f}, Status={info.get('status', 'unknown')}")
+    
+    return policy, best_graph, best_reward
 
 
-def visualize_network(graph):
-    """Create interactive network visualization using pyvis."""
-    net = Network(height="600px", width="100%", bgcolor="#222222", font_color="white")
+def visualize_graph(graph, node_types, filename="network.html"):
+    net = Network(height="800px", width="100%", bgcolor="#222222", font_color="white")
     
-    # Image mapping for device types (local image paths)
+    # Image mapping for device types using assets folder
     images = {
         "Server": "assets/server.png",
         "Router": "assets/router.png", 
-        "Switch": "assets/switch.png"
+        "Switch": "assets/switch.png",
+        "EndDevice": "assets/desktop.png"
     }
     
-    # Add nodes with images and labels
-    for node_id, data in graph.nodes(data=True):
-        node_type = data.get('type', 'Unknown')
-        image_url = images.get(node_type)
+    # Hierarchical positioning: Server(top) -> Switch -> Router -> EndDevice(bottom)
+    hierarchy_levels = {
+        "Server": -400,    # Top level (negative Y = top in vis.js)
+        "Switch": -200,    # Second level  
+        "Router": 0,       # Third level
+        "EndDevice": 200   # Bottom level (positive Y = bottom in vis.js)
+    }
+    
+    # Group nodes by type for horizontal spacing
+    nodes_by_type = {"Server": [], "Switch": [], "Router": [], "EndDevice": []}
+    for node in graph.nodes():
+        node_type = node_types.get(node, "Unknown")
+        if node_type in nodes_by_type:
+            nodes_by_type[node_type].append(node)
+    
+    for node in graph.nodes():
+        node_type = node_types.get(node, "Unknown")
+        image_path = images.get(node_type)
         
-        if image_url:
-            net.add_node(node_id, 
-                        label=f"{node_type}\n{node_id}", 
-                        image=image_url,
+        # Calculate position for hierarchical layout
+        y_pos = hierarchy_levels.get(node_type, 0)
+        type_nodes = nodes_by_type.get(node_type, [node])
+        x_spacing = 150
+        x_offset = (len(type_nodes) - 1) * x_spacing / 2
+        x_pos = (type_nodes.index(node) * x_spacing) - x_offset
+        
+        if image_path:
+            net.add_node(node, 
+                        label=f"{node_type}\n{node}", 
+                        image=image_path,
                         shape="image",
-                        size=30)
+                        size=40,
+                        x=x_pos,
+                        y=y_pos,
+                        physics=False)
         else:
-            net.add_node(node_id, 
-                        label=f"{node_type}\n{node_id}", 
+            net.add_node(node, 
+                        label=f"{node_type}\n{node}", 
                         color="#gray", 
-                        size=25)
+                        size=30,
+                        x=x_pos,
+                        y=y_pos,
+                        physics=False)
     
-    # Add edges
-    for u, v in graph.edges():
-        net.add_edge(u, v, width=2)
+    for edge in graph.edges():
+        net.add_edge(edge[0], edge[1], width=2)
     
-    # Configure physics
+    # Configure layout options
     net.set_options("""
     var options = {
       "physics": {
-        "enabled": true,
-        "stabilization": {"iterations": 100}
+        "enabled": false
+      },
+      "layout": {
+        "hierarchical": {
+          "enabled": false
+        }
       }
     }
     """)
     
-    # Save and show
-    net.save_graph("network_visualization.html")
-    print("\nInteractive visualization saved as 'network_visualization.html'")
-    print("Open the HTML file in your browser to view the network!")
+    net.save_graph(filename)
+    print(f"Network visualization saved to {filename}")
+    return filename
 
 
 if __name__ == "__main__":
-    main()
+    # Example configuration with end devices
+    devices = [("Server", 3), ("Switch", 2), ("Router", 2), ("EndDevice", 2)]
+    constraints = Constraints.from_strings(["connected", "server switch"])
+    
+    print("Training network design AI...")
+    policy, best_graph, best_reward = train_policy(devices, constraints, episodes=100)
+    
+    print(f"\nBest network found with reward: {best_reward:.3f}")
+    print(f"Nodes: {best_graph.number_of_nodes()}, Edges: {best_graph.number_of_edges()}")
+    print(f"Connected: {nx.is_connected(best_graph)}")
+    
+    # Create node type mapping for visualization
+    nodes = make_nodes(devices)
+    node_types = {i: t for i, t in nodes}
+    
+    # Visualize the best network
+    html_file = visualize_graph(best_graph, node_types)
+    
+    # Save network as JSON
+    network_data = {
+        "nodes": [{"id": i, "type": t} for i, t in nodes],
+        "edges": list(best_graph.edges())
+    }
+    
+    with open("best_network.json", "w") as f:
+        json.dump(network_data, f, indent=2)
+    
+    print("Network data saved to best_network.json")
+    
+    # Automatically open the visualization in browser
+    html_path = os.path.abspath(html_file)
+    print(f"Opening visualization in browser...")
+    webbrowser.open(f"file:///{html_path}")
