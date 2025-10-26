@@ -3,214 +3,315 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NetGen - AI Network Design Generator</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/vis-network.min.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/dist/vis-network.min.css">
+    <title>AI Network Design Generator</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
             min-height: 100vh;
         }
+        
         .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            display: flex;
+            height: 100vh;
             overflow: hidden;
         }
-        .header {
-            background: linear-gradient(135deg, #2c3e50, #34495e);
-            color: white;
-            padding: 30px;
-            text-align: center;
-        }
-        .header h1 {
-            margin: 0;
-            font-size: 2.5em;
-            font-weight: 300;
-        }
-        .header p {
-            margin: 10px 0 0 0;
-            opacity: 0.8;
-        }
-        .content {
-            display: flex;
-            min-height: 600px;
-        }
-        .controls {
+        
+        .sidebar {
             width: 350px;
-            padding: 30px;
-            background: #f8f9fa;
-            border-right: 1px solid #e9ecef;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 20px;
+            overflow-y: auto;
+            backdrop-filter: blur(10px);
         }
-        .form-group {
-            margin-bottom: 25px;
-        }
-        .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 600;
-            color: #2c3e50;
-        }
-        .form-group input, .form-group select {
-            width: 100%;
-            padding: 12px;
-            border: 2px solid #e9ecef;
-            border-radius: 8px;
-            font-size: 16px;
-            transition: border-color 0.3s;
-        }
-        .form-group input:focus, .form-group select:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-        .checkbox-group {
+        
+        .main-content {
+            flex: 1;
             display: flex;
-            align-items: center;
-            gap: 10px;
+            flex-direction: column;
         }
-        .checkbox-group input[type="checkbox"] {
-            width: auto;
+        
+        .header {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 20px;
+            text-align: center;
+            backdrop-filter: blur(10px);
         }
-        .generate-btn {
+        
+        .network-container {
+            flex: 1;
+            background: #222;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .welcome-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
             width: 100%;
-            padding: 15px;
-            background: linear-gradient(135deg, #667eea, #764ba2);
+            height: 100%;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            z-index: 100;
+        }
+        
+        .welcome-content {
+            max-width: 600px;
+            padding: 40px;
+        }
+        
+        .welcome-title {
+            font-size: 3em;
+            margin-bottom: 20px;
+            background: linear-gradient(45deg, #4a90e2, #357abd);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .welcome-subtitle {
+            font-size: 1.2em;
+            margin-bottom: 30px;
+            opacity: 0.9;
+        }
+        
+        .welcome-instructions {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .start-btn {
+            padding: 15px 30px;
+            background: linear-gradient(45deg, #4a90e2, #357abd);
             color: white;
             border: none;
             border-radius: 8px;
             font-size: 18px;
             font-weight: 600;
             cursor: pointer;
-            transition: transform 0.2s;
+            transition: all 0.3s ease;
         }
+        
+        .start-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(74, 144, 226, 0.3);
+        }
+        
+        #network {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #e0e0e0;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 16px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            background: rgba(255, 255, 255, 0.2);
+            box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.5);
+        }
+        
+        .generate-btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(45deg, #4a90e2, #357abd);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 20px;
+        }
+        
         .generate-btn:hover {
             transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(74, 144, 226, 0.3);
         }
+        
         .generate-btn:disabled {
-            opacity: 0.6;
+            background: #666;
             cursor: not-allowed;
             transform: none;
         }
-        .visualization {
-            flex: 1;
-            position: relative;
-        }
-        #network {
-            width: 100%;
-            height: 600px;
-            background: #2c3e50;
-        }
+        
         .stats {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            background: rgba(255,255,255,0.95);
+            background: rgba(0, 0, 0, 0.2);
             padding: 15px;
             border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            min-width: 200px;
+            backdrop-filter: blur(10px);
         }
+        
         .stats h3 {
-            margin: 0 0 10px 0;
-            color: #2c3e50;
+            margin-bottom: 10px;
+            color: #4a90e2;
         }
+        
         .stat-item {
             display: flex;
             justify-content: space-between;
-            margin-bottom: 5px;
+            margin-bottom: 8px;
+            padding: 5px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
         }
+        
         .loading {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            color: white;
-            font-size: 18px;
-            display: none;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 30px;
+            border-radius: 10px;
+            text-align: center;
+            z-index: 1000;
         }
+        
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 4px solid #4a90e2;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
         .error {
-            color: #e74c3c;
-            margin-top: 10px;
-            padding: 10px;
-            background: #fdf2f2;
-            border-radius: 5px;
-            display: none;
+            background: rgba(220, 53, 69, 0.2);
+            border: 1px solid #dc3545;
+            color: #ff6b6b;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1>🌐 NetGen</h1>
-            <p>AI-Powered Network Design Generator</p>
-        </div>
-        
-        <div class="content">
-            <div class="controls">
-                <div class="form-group">
-                    <label for="servers">Number of Servers:</label>
-                    <input type="number" id="servers" min="1" max="10" value="3">
-                </div>
-                
-                <div class="form-group">
-                    <label for="routers">Number of Routers:</label>
-                    <input type="number" id="routers" min="1" max="10" value="2">
-                </div>
-                
-                <div class="form-group">
-                    <label for="switches">Number of Switches:</label>
-                    <input type="number" id="switches" min="1" max="10" value="2">
-                </div>
-                
-                <div class="form-group">
-                    <label for="endDevices">Number of End Devices:</label>
-                    <input type="number" id="endDevices" min="1" max="10" value="2">
-                </div>
-                
-                <div class="form-group">
-                    <div class="checkbox-group">
-                        <input type="checkbox" id="serverSwitchOnly" checked>
-                        <label for="serverSwitchOnly">Servers connect only to switches</label>
-                    </div>
-                </div>
-                
-                <button class="generate-btn" onclick="generateNetwork()">
-                    🚀 Generate Network
-                </button>
-                
-                <div class="error" id="error"></div>
+        <div class="sidebar">
+            <h2 style="margin-bottom: 30px; text-align: center; color: #4a90e2;">Network Parameters</h2>
+            
+            <div class="form-group">
+                <label for="servers">Servers</label>
+                <input type="number" id="servers" min="0" max="10" value="0">
             </div>
             
-            <div class="visualization">
+            <div class="form-group">
+                <label for="switches">Switches</label>
+                <input type="number" id="switches" min="0" max="10" value="0">
+            </div>
+            
+            <div class="form-group">
+                <label for="routers">Routers</label>
+                <input type="number" id="routers" min="0" max="10" value="0">
+            </div>
+            
+            <div class="form-group">
+                <label for="end_devices">End Devices</label>
+                <input type="number" id="end_devices" min="0" max="10" value="0">
+            </div>
+            
+
+            
+            <button class="generate-btn" onclick="generateNetwork()">
+                🚀 Generate Network
+            </button>
+            
+            <div id="error-message" class="error" style="display: none;"></div>
+            
+            <div class="stats" id="stats" style="display: none;">
+                <h3>Network Statistics</h3>
+                <div class="stat-item">
+                    <span>Reward Score:</span>
+                    <span id="reward">-</span>
+                </div>
+                <div class="stat-item">
+                    <span>Total Nodes:</span>
+                    <span id="nodes">-</span>
+                </div>
+                <div class="stat-item">
+                    <span>Total Edges:</span>
+                    <span id="edges">-</span>
+                </div>
+                <div class="stat-item">
+                    <span>Connected:</span>
+                    <span id="connected">-</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <div class="header">
+                <h1>🤖 AI Network Design Generator</h1>
+                <p>Configure parameters and generate optimal network topologies using reinforcement learning</p>
+            </div>
+            
+            <div class="network-container">
+                <div id="welcome-screen" class="welcome-screen">
+                    <div class="welcome-content">
+                        <h1 class="welcome-title">🤖 AI Network Designer</h1>
+                        <p class="welcome-subtitle">Generate optimal network topologies using reinforcement learning</p>
+                        
+                        <div class="welcome-instructions">
+                            <h3 style="margin-bottom: 15px; color: #4a90e2;">How to Use:</h3>
+                            <p style="margin-bottom: 10px;">1. Set the number of each device type in the sidebar</p>
+                            <p style="margin-bottom: 10px;">2. Click "Generate Network" to train the AI</p>
+                            <p>3. Watch as the AI creates an optimal network topology</p>
+                        </div>
+                        
+                        <button class="start-btn" onclick="hideWelcome()">Get Started 🚀</button>
+                    </div>
+                </div>
+                
                 <div id="network"></div>
-                <div class="loading" id="loading">🤖 AI is designing your network...</div>
-                <div class="stats" id="stats" style="display: none;">
-                    <h3>📊 Network Stats</h3>
-                    <div class="stat-item">
-                        <span>Nodes:</span>
-                        <span id="stat-nodes">-</span>
-                    </div>
-                    <div class="stat-item">
-                        <span>Edges:</span>
-                        <span id="stat-edges">-</span>
-                    </div>
-                    <div class="stat-item">
-                        <span>Connected:</span>
-                        <span id="stat-connected">-</span>
-                    </div>
-                    <div class="stat-item">
-                        <span>Is Tree:</span>
-                        <span id="stat-tree">-</span>
-                    </div>
-                    <div class="stat-item">
-                        <span>AI Score:</span>
-                        <span id="stat-reward">-</span>
-                    </div>
+                <div id="loading" class="loading" style="display: none;">
+                    <div class="spinner"></div>
+                    <p>Training AI and generating network...</p>
                 </div>
             </div>
         </div>
@@ -218,84 +319,191 @@
 
     <script>
         let network = null;
-
-        async function generateNetwork() {
-            const btn = document.querySelector('.generate-btn');
+        
+        function generateNetwork() {
+            // Validate inputs first
+            if (!validateInputs()) {
+                return;
+            }
+            
+            // Hide welcome screen if still visible
+            document.getElementById('welcome-screen').style.display = 'none';
+            
+            const button = document.querySelector('.generate-btn');
             const loading = document.getElementById('loading');
-            const error = document.getElementById('error');
-            const stats = document.getElementById('stats');
+            const errorDiv = document.getElementById('error-message');
+            const statsDiv = document.getElementById('stats');
             
             // Show loading
-            btn.disabled = true;
-            btn.textContent = '🤖 Generating...';
+            button.disabled = true;
             loading.style.display = 'block';
-            error.style.display = 'none';
-            stats.style.display = 'none';
+            errorDiv.style.display = 'none';
+            statsDiv.style.display = 'none';
             
-            try {
-                const response = await fetch('/generate', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        servers: parseInt(document.getElementById('servers').value),
-                        routers: parseInt(document.getElementById('routers').value),
-                        switches: parseInt(document.getElementById('switches').value),
-                        endDevices: parseInt(document.getElementById('endDevices').value),
-                        serverSwitchOnly: document.getElementById('serverSwitchOnly').checked
-                    })
-                });
-                
-                const data = await response.json();
+            // Get parameters
+            const params = {
+                servers: parseInt(document.getElementById('servers').value),
+                switches: parseInt(document.getElementById('switches').value),
+                routers: parseInt(document.getElementById('routers').value),
+                end_devices: parseInt(document.getElementById('end_devices').value)
+            };
+            
+            // Send request with timeout
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+            
+            fetch('/generate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(params),
+                signal: controller.signal
+            })
+            .then(response => response.json())
+            .then(data => {
+                loading.style.display = 'none';
+                button.disabled = false;
                 
                 if (data.success) {
-                    // Create network visualization
-                    const container = document.getElementById('network');
-                    const networkData = {
-                        nodes: new vis.DataSet(data.nodes),
-                        edges: new vis.DataSet(data.edges)
-                    };
-                    
-                    const options = {
-                        physics: {
-                            enabled: true,
-                            stabilization: { iterations: 100 }
-                        },
-                        nodes: {
-                            font: { color: 'white' }
-                        }
-                    };
-                    
-                    network = new vis.Network(container, networkData, options);
+                    // Update visualization
+                    updateNetwork(data.network);
                     
                     // Update stats
-                    document.getElementById('stat-nodes').textContent = data.stats.nodes;
-                    document.getElementById('stat-edges').textContent = data.stats.edges;
-                    document.getElementById('stat-connected').textContent = data.stats.connected ? '✅' : '❌';
-                    document.getElementById('stat-tree').textContent = data.stats.is_tree ? '✅' : '❌';
-                    document.getElementById('stat-reward').textContent = data.stats.reward.toFixed(3);
-                    
-                    stats.style.display = 'block';
+                    document.getElementById('reward').textContent = data.stats.reward;
+                    document.getElementById('nodes').textContent = data.stats.nodes;
+                    document.getElementById('edges').textContent = data.stats.edges;
+                    document.getElementById('connected').textContent = data.stats.connected ? '✅ Yes' : '❌ No';
+                    statsDiv.style.display = 'block';
                 } else {
-                    error.textContent = 'Error: ' + data.error;
-                    error.style.display = 'block';
+                    errorDiv.textContent = 'Error: ' + data.error;
+                    errorDiv.style.display = 'block';
                 }
-            } catch (err) {
-                error.textContent = 'Network error: ' + err.message;
-                error.style.display = 'block';
-            } finally {
-                // Hide loading
-                btn.disabled = false;
-                btn.textContent = '🚀 Generate Network';
+            })
+            .catch(error => {
+                clearTimeout(timeoutId);
                 loading.style.display = 'none';
+                button.disabled = false;
+                
+                let errorMessage = 'Network error: ';
+                if (error.name === 'AbortError') {
+                    errorMessage += 'Request timed out. Please try with fewer devices or episodes.';
+                } else {
+                    errorMessage += error.message;
+                }
+                
+                errorDiv.textContent = errorMessage;
+                errorDiv.style.display = 'block';
+                console.error('Fetch error:', error);
+            });
+        }
+        
+        function updateNetwork(networkData) {
+            console.log('Updating network with data:', networkData);
+            const container = document.getElementById('network');
+            
+            // Clear any existing network
+            if (network) {
+                network.destroy();
+                network = null;
+            }
+            
+            // Ensure container is visible
+            container.style.display = 'block';
+            
+            // Convert data to vis.js format
+            const nodes = new vis.DataSet(networkData.nodes || []);
+            const edges = new vis.DataSet(networkData.edges || []);
+            
+            const data = {
+                nodes: nodes,
+                edges: edges
+            };
+            
+            const options = {
+                physics: {
+                    enabled: false
+                },
+                layout: {
+                    hierarchical: {
+                        enabled: false
+                    }
+                },
+                nodes: {
+                    borderWidth: 2,
+                    borderColor: '#4a90e2',
+                    font: {
+                        color: 'white',
+                        size: 14,
+                        face: 'Arial'
+                    },
+                    chosen: true
+                },
+                edges: {
+                    color: {
+                        color: '#4a90e2',
+                        highlight: '#357abd'
+                    },
+                    width: 2,
+                    smooth: false
+                },
+                interaction: {
+                    dragNodes: true,
+                    dragView: true,
+                    zoomView: true
+                }
+            };
+            
+            try {
+                // Create new network
+                network = new vis.Network(container, data, options);
+                console.log('Network created successfully');
+                
+                // Fit the network to the container after a short delay
+                setTimeout(() => {
+                    if (network) {
+                        network.fit({
+                            animation: {
+                                duration: 1000,
+                                easingFunction: 'easeInOutQuad'
+                            }
+                        });
+                    }
+                }, 200);
+                
+            } catch (error) {
+                console.error('Error creating network:', error);
             }
         }
-
-        // Generate initial network
-        window.onload = () => {
-            generateNetwork();
-        };
+        
+        function hideWelcome() {
+            document.getElementById('welcome-screen').style.display = 'none';
+        }
+        
+        function validateInputs() {
+            const servers = parseInt(document.getElementById('servers').value);
+            const switches = parseInt(document.getElementById('switches').value);
+            const routers = parseInt(document.getElementById('routers').value);
+            const endDevices = parseInt(document.getElementById('end_devices').value);
+            
+            const total = servers + switches + routers + endDevices;
+            
+            if (total === 0) {
+                const errorDiv = document.getElementById('error-message');
+                errorDiv.textContent = 'Please set at least one device to generate a network.';
+                errorDiv.style.display = 'block';
+                return false;
+            }
+            
+            if (total === 1) {
+                const errorDiv = document.getElementById('error-message');
+                errorDiv.textContent = 'Please set at least 2 devices to create connections.';
+                errorDiv.style.display = 'block';
+                return false;
+            }
+            
+            return true;
+        }
     </script>
 </body>
 </html>

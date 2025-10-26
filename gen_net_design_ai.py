@@ -100,6 +100,16 @@ class GraphEnv:
         if tv == "Server" and tu != "Switch":
             return False
         return True
+    
+    def _ensure_server_switch_connections(self):
+        """Ensure all servers are connected to all switches"""
+        servers = [i for i, t in self.nodes if t == "Server"]
+        switches = [i for i, t in self.nodes if t == "Switch"]
+        
+        for server in servers:
+            for switch in switches:
+                if not self.G.has_edge(server, switch):
+                    self.G.add_edge(server, switch)
 
     def _edge_keeps_tree_property(self, u: int, v: int) -> bool:
         if not self.constraints.must_be_tree:
@@ -182,6 +192,11 @@ class GraphEnv:
     def reset(self):
         self.G = nx.Graph()
         self.G.add_nodes_from([i for i, _ in self.nodes])
+        
+        # Ensure all servers connect to all switches if constraint is enabled
+        if self.constraints.servers_connect_only_to_switches:
+            self._ensure_server_switch_connections()
+        
         self.steps = 0
         self.done = False
         return self._state()
@@ -271,6 +286,10 @@ def train_policy(devices, constraints, episodes=100, lr=1e-3):
     env = GraphEnv(devices, constraints)
     policy = EdgePolicy()
     optimizer = optim.Adam(policy.parameters(), lr=lr)
+    
+    # Pre-connect all servers to all switches if constraint is enabled
+    if constraints.servers_connect_only_to_switches:
+        env._ensure_server_switch_connections()
     
     best_graph = None
     best_reward = float('-inf')
