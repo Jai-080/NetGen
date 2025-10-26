@@ -70,48 +70,143 @@
         
         .welcome-content {
             max-width: 600px;
-            padding: 40px;
+            padding: 50px 40px;
+            text-align: center;
+        }
+        
+        .welcome-header {
+            margin-bottom: 30px;
+        }
+        
+        .network-icon {
+            font-size: 4em;
+            margin-bottom: 20px;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
         }
         
         .welcome-title {
-            font-size: 3em;
-            margin-bottom: 20px;
-            background: linear-gradient(45deg, #4a90e2, #357abd);
+            font-size: 3.2em;
+            margin-bottom: 15px;
+            background: linear-gradient(45deg, #4a90e2, #357abd, #4a90e2);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
+            font-weight: 700;
+            animation: gradient 3s ease-in-out infinite;
+        }
+        
+        @keyframes gradient {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
         }
         
         .welcome-subtitle {
-            font-size: 1.2em;
-            margin-bottom: 30px;
-            opacity: 0.9;
+            font-size: 1.3em;
+            color: #b0c4de;
+            margin-bottom: 0;
+            font-weight: 300;
         }
         
-        .welcome-instructions {
-            background: rgba(0, 0, 0, 0.3);
+        .welcome-description {
+            margin-bottom: 35px;
+        }
+        
+        .welcome-description p {
+            font-size: 1.1em;
+            color: #d0d0d0;
+            line-height: 1.6;
+            margin: 0;
+        }
+        
+        .quick-start {
+            background: rgba(0, 0, 0, 0.4);
+            padding: 30px;
+            border-radius: 15px;
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(74, 144, 226, 0.3);
+            margin-bottom: 30px;
+        }
+        
+        .quick-start h3 {
+            color: #4a90e2;
+            margin-bottom: 25px;
+            font-size: 1.4em;
+            font-weight: 600;
+        }
+        
+        .steps {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .step {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            padding: 12px 20px;
+            background: rgba(74, 144, 226, 0.1);
+            border-radius: 10px;
+            border-left: 4px solid #4a90e2;
+        }
+        
+        .step-number {
+            background: #4a90e2;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            margin-right: 15px;
+            font-size: 0.9em;
+        }
+        
+        .step-text {
+            color: #e0e0e0;
+            font-size: 1.1em;
+            font-weight: 500;
+        }
+        
+        .welcome-footer {
+            background: rgba(74, 144, 226, 0.15);
             padding: 20px;
             border-radius: 10px;
-            margin-bottom: 30px;
-            backdrop-filter: blur(10px);
+            border: 1px solid rgba(74, 144, 226, 0.3);
         }
         
-        .start-btn {
-            padding: 15px 30px;
-            background: linear-gradient(45deg, #4a90e2, #357abd);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 18px;
+        .welcome-footer p {
+            color: #4a90e2;
+            font-size: 1.2em;
             font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
+            margin: 0;
         }
         
-        .start-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(74, 144, 226, 0.3);
+        .topology-header {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 15px 20px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(74, 144, 226, 0.3);
         }
+        
+        .topology-header h2 {
+            color: #4a90e2;
+            margin: 0;
+            font-size: 1.5em;
+            font-weight: 600;
+            text-transform: capitalize;
+        }
+        
+
         
         #network {
             width: 100%;
@@ -253,6 +348,49 @@
             border-radius: 8px;
             margin-bottom: 20px;
         }
+        
+        .success-rates {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 15px;
+            border-radius: 8px;
+            backdrop-filter: blur(10px);
+            margin-top: 20px;
+        }
+        
+        .success-rates h3 {
+            margin-bottom: 10px;
+            color: #4a90e2;
+        }
+        
+        .rate-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            padding: 5px 0;
+        }
+        
+        .rate-bar {
+            width: 60%;
+            height: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            overflow: hidden;
+            margin-left: 10px;
+        }
+        
+        .rate-fill {
+            height: 100%;
+            background: linear-gradient(45deg, #4a90e2, #357abd);
+            border-radius: 10px;
+            transition: width 0.5s ease;
+        }
+        
+        .rate-text {
+            font-weight: 600;
+            min-width: 40px;
+            text-align: right;
+        }
     </style>
 </head>
 <body>
@@ -317,6 +455,11 @@
                 </div>
             </div>
             
+            <div class="success-rates" id="success-rates" style="display: none;">
+                <h3>📊 Topology Success Rates</h3>
+                <div id="rates-list"></div>
+            </div>
+            
 
         </div>
         
@@ -327,19 +470,43 @@
             </div>
             
             <div class="network-container">
+                <div id="topology-header" class="topology-header" style="display: none;">
+                    <h2 id="topology-title">Network Topology</h2>
+                </div>
+                
                 <div id="welcome-screen" class="welcome-screen">
                     <div class="welcome-content">
-                        <h1 class="welcome-title">🤖 AI Network Designer</h1>
-                        <p class="welcome-subtitle">Generate optimal network topologies using reinforcement learning</p>
-                        
-                        <div class="welcome-instructions">
-                            <h3 style="margin-bottom: 15px; color: #4a90e2;">How to Use:</h3>
-                            <p style="margin-bottom: 10px;">1. Set the number of each device type in the sidebar</p>
-                            <p style="margin-bottom: 10px;">2. Click "Generate Network" to train the AI</p>
-                            <p>3. Watch as the AI creates an optimal network topology</p>
+                        <div class="welcome-header">
+                            <div class="network-icon">🌐</div>
+                            <h1 class="welcome-title">AI Network Designer</h1>
+                            <p class="welcome-subtitle">Build intelligent network topologies with ease</p>
                         </div>
                         
-                        <button class="start-btn" onclick="hideWelcome()">Get Started 🚀</button>
+                        <div class="welcome-description">
+                            <p>Design professional network architectures using advanced algorithms. Choose from multiple topology types and watch your network come to life with real-time visualization and success analytics.</p>
+                        </div>
+                        
+                        <div class="quick-start">
+                            <h3>🚀 Get Started in 3 Steps:</h3>
+                            <div class="steps">
+                                <div class="step">
+                                    <span class="step-number">1</span>
+                                    <span class="step-text">Configure your devices</span>
+                                </div>
+                                <div class="step">
+                                    <span class="step-number">2</span>
+                                    <span class="step-text">Select topology type</span>
+                                </div>
+                                <div class="step">
+                                    <span class="step-number">3</span>
+                                    <span class="step-text">Generate & analyze</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="welcome-footer">
+                            <p>✨ Start building your network architecture now!</p>
+                        </div>
                     </div>
                 </div>
                 
@@ -368,11 +535,16 @@
             const loading = document.getElementById('loading');
             const errorDiv = document.getElementById('error-message');
             const statsDiv = document.getElementById('stats');
+            const ratesDiv = document.getElementById('success-rates');
+            const topologyHeader = document.getElementById('topology-header');
+            
             // Show loading
             button.disabled = true;
             loading.style.display = 'block';
             errorDiv.style.display = 'none';
             statsDiv.style.display = 'none';
+            ratesDiv.style.display = 'none';
+            topologyHeader.style.display = 'none';
             
             // Get parameters
             const params = {
@@ -401,6 +573,16 @@
                 button.disabled = false;
                 
                 if (data.success) {
+                    // Hide welcome screen and show topology header
+                    document.getElementById('welcome-screen').style.display = 'none';
+                    const topologyHeader = document.getElementById('topology-header');
+                    const topologyTitle = document.getElementById('topology-title');
+                    
+                    // Get current topology
+                    const currentTopology = document.getElementById('topology').value;
+                    topologyTitle.textContent = `${currentTopology.charAt(0).toUpperCase() + currentTopology.slice(1)} Topology`;
+                    topologyHeader.style.display = 'block';
+                    
                     // Update visualization
                     updateNetwork(data.network);
                     
@@ -409,6 +591,43 @@
                     document.getElementById('edges').textContent = data.stats.edges;
                     document.getElementById('connected').textContent = data.stats.connected ? '✅ Yes' : '❌ No';
                     statsDiv.style.display = 'block';
+                    
+                    // Update success rates
+                    const ratesDiv = document.getElementById('success-rates');
+                    const ratesList = document.getElementById('rates-list');
+                    
+                    // Clear previous rates
+                    ratesList.innerHTML = '';
+                    
+                    // Check if success_rates exists
+                    if (data.success_rates) {
+                        // Sort topologies by success rate
+                        const sortedRates = Object.entries(data.success_rates)
+                            .sort(([,a], [,b]) => b - a);
+                    
+                        sortedRates.forEach(([topology, rate]) => {
+                            const rateItem = document.createElement('div');
+                            rateItem.className = 'rate-item';
+                            
+                            const topologyName = topology.charAt(0).toUpperCase() + topology.slice(1);
+                            const isOptimal = rate === Math.max(...Object.values(data.success_rates));
+                            const optimalText = isOptimal ? ' 🏆' : '';
+                            
+                            rateItem.innerHTML = `
+                                <span>${topologyName}${optimalText}</span>
+                                <div class="rate-bar">
+                                    <div class="rate-fill" style="width: ${rate}%"></div>
+                                </div>
+                                <span class="rate-text">${rate}%</span>
+                            `;
+                            
+                            ratesList.appendChild(rateItem);
+                        });
+                    
+                        ratesDiv.style.display = 'block';
+                    } else {
+                        console.error('Success rates not found in response');
+                    }
                 } else {
                     errorDiv.textContent = 'Error: ' + data.error;
                     errorDiv.style.display = 'block';

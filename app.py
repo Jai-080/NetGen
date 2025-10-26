@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, jsonify
 import json
 from gen_net_design_ai import *
+import random
 
 app = Flask(__name__)
 
@@ -43,7 +44,6 @@ def generate_network():
         
         # Generate network based on topology
         if topology == 'random':
-            import random
             topology_options = ['hybrid', 'star', 'ring', 'mesh', 'tree', 'bus']
             topology = random.choice(topology_options)
         
@@ -53,6 +53,9 @@ def generate_network():
         # Create node type mapping
         nodes = make_nodes(devices)
         node_types = {i: t for i, t in nodes}
+        
+        # Calculate success rates for all topologies
+        success_rates = calculate_topology_success_rates(servers, switches, routers, end_devices)
         
         # Generate network data for visualization
         network_data = generate_network_data(best_graph, node_types, topology)
@@ -64,7 +67,8 @@ def generate_network():
                 'nodes': best_graph.number_of_nodes(),
                 'edges': best_graph.number_of_edges(),
                 'connected': nx.is_connected(best_graph)
-            }
+            },
+            'success_rates': success_rates
         })
         
     except Exception as e:

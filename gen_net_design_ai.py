@@ -282,6 +282,83 @@ def run_episode(env: GraphEnv, policy: EdgePolicy, gamma=0.99) -> Tuple[Episode,
     return Episode(ep_logps, ep_rewards), env.G.copy(), info_final
 
 
+def calculate_topology_success_rates(servers, switches, routers, end_devices):
+    """Calculate success rates for each topology based on device configuration"""
+    total_devices = servers + switches + routers + end_devices
+    device_diversity = sum([1 for count in [servers, switches, routers, end_devices] if count > 0])
+    
+    rates = {}
+    
+    # Star topology - best with central servers, poor with many devices
+    base_star = 70
+    if servers > 0:
+        base_star += 15
+    if total_devices <= 5:
+        base_star += 10
+    elif total_devices > 8:
+        base_star -= 20
+    rates['star'] = min(95, max(30, base_star))
+    
+    # Ring topology - best for peer networks, poor with hierarchy
+    base_ring = 60
+    if servers == 0 and switches == 0:
+        base_ring += 25
+    if 4 <= total_devices <= 8:
+        base_ring += 15
+    elif total_devices < 3:
+        base_ring -= 30
+    if device_diversity <= 2:
+        base_ring += 10
+    rates['ring'] = min(95, max(25, base_ring))
+    
+    # Mesh topology - best for large networks, overkill for small ones
+    base_mesh = 50
+    if total_devices >= 8:
+        base_mesh += 35
+    elif total_devices >= 6:
+        base_mesh += 20
+    elif total_devices <= 3:
+        base_mesh -= 25
+    if device_diversity >= 3:
+        base_mesh += 10
+    rates['mesh'] = min(95, max(20, base_mesh))
+    
+    # Tree topology - excellent for hierarchical structures
+    base_tree = 55
+    if servers > 0 and switches > 0:
+        base_tree += 25
+    if routers > 0 or end_devices > 0:
+        base_tree += 15
+    if device_diversity >= 3:
+        base_tree += 15
+    elif device_diversity == 1:
+        base_tree -= 20
+    rates['tree'] = min(95, max(35, base_tree))
+    
+    # Bus topology - simple but limited scalability
+    base_bus = 65
+    if total_devices <= 4:
+        base_bus += 15
+    elif total_devices > 7:
+        base_bus -= 25
+    if device_diversity == 1:
+        base_bus += 10
+    elif device_diversity >= 3:
+        base_bus -= 15
+    rates['bus'] = min(90, max(25, base_bus))
+    
+    # Hybrid topology - balanced approach
+    base_hybrid = 70
+    if 4 <= total_devices <= 8:
+        base_hybrid += 15
+    if device_diversity >= 2:
+        base_hybrid += 10
+    if servers > 0:
+        base_hybrid += 5
+    rates['hybrid'] = min(90, max(45, base_hybrid))
+    
+    return rates
+
 def generate_topology(devices, topology_type):
     """Generate network based on specified topology"""
     nodes = make_nodes(devices)
