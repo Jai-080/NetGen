@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Network Design Generator</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        
+        .container {
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .sidebar {
+            width: 350px;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 20px;
+            overflow-y: auto;
+            backdrop-filter: blur(10px);
+        }
+        
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 20px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+        }
+        
+        .network-container {
+            flex: 1;
+            background: #222;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .welcome-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            z-index: 100;
+        }
+        
+        .welcome-content {
+            max-width: 600px;
+            padding: 50px 40px;
+            text-align: center;
+        }
+        
+        .welcome-header {
+            margin-bottom: 30px;
+        }
+        
+        .network-icon {
+            font-size: 4em;
+            margin-bottom: 20px;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
+        .welcome-title {
+            font-size: 3.2em;
+            margin-bottom: 15px;
+            background: linear-gradient(45deg, #4a90e2, #357abd, #4a90e2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-weight: 700;
+            animation: gradient 3s ease-in-out infinite;
+        }
+        
+        @keyframes gradient {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+        
+        .welcome-subtitle {
+            font-size: 1.3em;
+            color: #b0c4de;
+            margin-bottom: 0;
+            font-weight: 300;
+        }
+        
+        .welcome-description {
+            margin-bottom: 35px;
+        }
+        
+        .welcome-description p {
+            font-size: 1.1em;
+            color: #d0d0d0;
+            line-height: 1.6;
+            margin: 0;
+        }
+        
+        .quick-start {
+            background: rgba(0, 0, 0, 0.4);
+            padding: 30px;
+            border-radius: 15px;
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(74, 144, 226, 0.3);
+            margin-bottom: 30px;
+        }
+        
+        .quick-start h3 {
+            color: #4a90e2;
+            margin-bottom: 25px;
+            font-size: 1.4em;
+            font-weight: 600;
+        }
+        
+        .steps {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .step {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            padding: 12px 20px;
+            background: rgba(74, 144, 226, 0.1);
+            border-radius: 10px;
+            border-left: 4px solid #4a90e2;
+        }
+        
+        .step-number {
+            background: #4a90e2;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            margin-right: 15px;
+            font-size: 0.9em;
+        }
+        
+        .step-text {
+            color: #e0e0e0;
+            font-size: 1.1em;
+            font-weight: 500;
+        }
+        
+        .welcome-footer {
+            background: rgba(74, 144, 226, 0.15);
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid rgba(74, 144, 226, 0.3);
+        }
+        
+        .welcome-footer p {
+            color: #4a90e2;
+            font-size: 1.2em;
+            font-weight: 600;
+            margin: 0;
+        }
+        
+        .topology-header {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 15px 20px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(74, 144, 226, 0.3);
+            position: relative;
+            z-index: 10;
+        }
+        
+        .topology-header h2 {
+            color: #4a90e2;
+            margin: 0;
+            font-size: 1.5em;
+            font-weight: 600;
+            text-transform: capitalize;
+        }
+        
+
+        
+        #network {
+            width: 100%;
+            height: calc(100% - 60px);
+            position: absolute;
+            top: 60px;
+            left: 0;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #e0e0e0;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 16px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            background: rgba(255, 255, 255, 0.2);
+            box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.5);
+        }
+        
+        .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 16px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .form-group select:focus {
+            outline: none;
+            background: rgba(255, 255, 255, 0.2);
+            box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.5);
+        }
+        
+        .form-group select option {
+            background: #333;
+            color: white;
+        }
+        
+        .generate-btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(45deg, #4a90e2, #357abd);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 20px;
+        }
+        
+        .generate-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(74, 144, 226, 0.3);
+        }
+        
+        .generate-btn:disabled {
+            background: #666;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .stats {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 15px;
+            border-radius: 8px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .stats h3 {
+            margin-bottom: 10px;
+            color: #4a90e2;
+        }
+        
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            padding: 5px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+
+        
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            padding: 30px;
+            border-radius: 10px;
+            text-align: center;
+            z-index: 1000;
+        }
+        
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 4px solid #4a90e2;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .error {
+            background: rgba(220, 53, 69, 0.2);
+            border: 1px solid #dc3545;
+            color: #ff6b6b;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .success-rates {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 15px;
+            border-radius: 8px;
+            backdrop-filter: blur(10px);
+            margin-top: 20px;
+        }
+        
+        .success-rates h3 {
+            margin-bottom: 10px;
+            color: #4a90e2;
+        }
+        
+        .rate-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            padding: 5px 0;
+        }
+        
+        .rate-bar {
+            width: 60%;
+            height: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            overflow: hidden;
+            margin-left: 10px;
+        }
+        
+        .rate-fill {
+            height: 100%;
+            background: linear-gradient(45deg, #4a90e2, #357abd);
+            border-radius: 10px;
+            transition: width 0.5s ease;
+        }
+        
+        .rate-text {
+            font-weight: 600;
+            min-width: 40px;
+            text-align: right;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <h2 style="margin-bottom: 30px; text-align: center; color: #4a90e2;">Network Parameters</h2>
+            
+            <div class="form-group">
+                <label for="servers">Servers</label>
+                <input type="number" id="servers" min="0" max="10" value="0">
+            </div>
+            
+            <div class="form-group">
+                <label for="switches">Switches</label>
+                <input type="number" id="switches" min="0" max="10" value="0">
+            </div>
+            
+            <div class="form-group">
+                <label for="routers">Routers</label>
+                <input type="number" id="routers" min="0" max="10" value="0">
+            </div>
+            
+            <div class="form-group">
+                <label for="end_devices">End Devices</label>
+                <input type="number" id="end_devices" min="0" max="10" value="0">
+            </div>
+            
+            <div class="form-group">
+                <label for="topology">Network Topology</label>
+                <select id="topology">
+                    <option value="hybrid">Hybrid</option>
+                    <option value="star">Star</option>
+                    <option value="ring">Ring</option>
+                    <option value="mesh">Mesh</option>
+                    <option value="tree">Tree</option>
+                    <option value="bus">Bus</option>
+                    <option value="random">Random</option>
+                </select>
+            </div>
+            
+
+            
+            <button class="generate-btn" onclick="generateNetwork()">
+                🚀 Generate Network
+            </button>
+            
+            <div id="error-message" class="error" style="display: none;"></div>
+            
+            <div class="stats" id="stats" style="display: none;">
+                <h3>Network Statistics</h3>
+                <div class="stat-item">
+                    <span>Total Nodes:</span>
+                    <span id="nodes">-</span>
+                </div>
+                <div class="stat-item">
+                    <span>Total Edges:</span>
+                    <span id="edges">-</span>
+                </div>
+                <div class="stat-item">
+                    <span>Connected:</span>
+                    <span id="connected">-</span>
+                </div>
+            </div>
+            
+            <div class="success-rates" id="success-rates" style="display: none;">
+                <h3>📊 Topology Success Rates</h3>
+                <div id="rates-list"></div>
+            </div>
+            
+
+        </div>
+        
+        <div class="main-content">
+            <div class="header">
+                <h1>🤖 AI Network Design Generator</h1>
+                <p>Configure parameters and generate optimal network topologies using reinforcement learning</p>
+            </div>
+            
+            <div class="network-container">
+                <div id="topology-header" class="topology-header" style="display: none;">
+                    <h2 id="topology-title">Network Topology</h2>
+                </div>
+                
+                <div id="welcome-screen" class="welcome-screen">
+                    <div class="welcome-content">
+                        <div class="welcome-header">
+                            <div class="network-icon">🌐</div>
+                            <h1 class="welcome-title">AI Network Designer</h1>
+                            <p class="welcome-subtitle">Build intelligent network topologies with ease</p>
+                        </div>
+                        
+                        <div class="welcome-description">
+                            <p>Design professional network architectures using advanced algorithms. Choose from multiple topology types and watch your network come to life with real-time visualization and success analytics.</p>
+                        </div>
+                        
+                        <div class="quick-start">
+                            <h3>🚀 Get Started in 3 Steps:</h3>
+                            <div class="steps">
+                                <div class="step">
+                                    <span class="step-number">1</span>
+                                    <span class="step-text">Configure your devices</span>
+                                </div>
+                                <div class="step">
+                                    <span class="step-number">2</span>
+                                    <span class="step-text">Select topology type</span>
+                                </div>
+                                <div class="step">
+                                    <span class="step-number">3</span>
+                                    <span class="step-text">Generate & analyze</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="welcome-footer">
+                            <p>✨ Start building your network architecture now!</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="network"></div>
+                <div id="loading" class="loading" style="display: none;">
+                    <div class="spinner"></div>
+                    <p>Training AI and generating network...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let network = null;
+        
+        function generateNetwork() {
+            // Validate inputs first
+            if (!validateInputs()) {
+                return;
+            }
+            
+            // Hide welcome screen if still visible
+            document.getElementById('welcome-screen').style.display = 'none';
+            
+            const button = document.querySelector('.generate-btn');
+            const loading = document.getElementById('loading');
+            const errorDiv = document.getElementById('error-message');
+            const statsDiv = document.getElementById('stats');
+            const ratesDiv = document.getElementById('success-rates');
+            const topologyHeader = document.getElementById('topology-header');
+            
+            // Show loading
+            button.disabled = true;
+            loading.style.display = 'block';
+            errorDiv.style.display = 'none';
+            statsDiv.style.display = 'none';
+            ratesDiv.style.display = 'none';
+            topologyHeader.style.display = 'none';
+            
+            // Get parameters
+            const params = {
+                servers: parseInt(document.getElementById('servers').value),
+                switches: parseInt(document.getElementById('switches').value),
+                routers: parseInt(document.getElementById('routers').value),
+                end_devices: parseInt(document.getElementById('end_devices').value),
+                topology: document.getElementById('topology').value
+            };
+            
+            // Send request with timeout
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+            
+            fetch('/generate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(params),
+                signal: controller.signal
+            })
+            .then(response => response.json())
+            .then(data => {
+                loading.style.display = 'none';
+                button.disabled = false;
+                
+                if (data.success) {
+                    // Hide welcome screen and show topology header
+                    document.getElementById('welcome-screen').style.display = 'none';
+                    const topologyHeader = document.getElementById('topology-header');
+                    const topologyTitle = document.getElementById('topology-title');
+                    
+                    // Use the actual topology from response (handles random selection)
+                    const actualTopology = data.topology_used || document.getElementById('topology').value;
+                    topologyTitle.textContent = `${actualTopology.charAt(0).toUpperCase() + actualTopology.slice(1)} Topology`;
+                    topologyHeader.style.display = 'block';
+                    
+                    // Update visualization
+                    updateNetwork(data.network);
+                    
+                    // Update stats
+                    document.getElementById('nodes').textContent = data.stats.nodes;
+                    document.getElementById('edges').textContent = data.stats.edges;
+                    document.getElementById('connected').textContent = data.stats.connected ? '✅ Yes' : '❌ No';
+                    statsDiv.style.display = 'block';
+                    
+                    // Update success rates
+                    const ratesDiv = document.getElementById('success-rates');
+                    const ratesList = document.getElementById('rates-list');
+                    
+                    // Clear previous rates
+                    ratesList.innerHTML = '';
+                    
+                    // Check if success_rates exists
+                    if (data.success_rates) {
+                        // Sort topologies by success rate
+                        const sortedRates = Object.entries(data.success_rates)
+                            .sort(([,a], [,b]) => b - a);
+                    
+                        sortedRates.forEach(([topology, rate]) => {
+                            const rateItem = document.createElement('div');
+                            rateItem.className = 'rate-item';
+                            
+                            const topologyName = topology.charAt(0).toUpperCase() + topology.slice(1);
+                            const isOptimal = rate === Math.max(...Object.values(data.success_rates));
+                            const optimalText = isOptimal ? ' 🏆' : '';
+                            
+                            rateItem.innerHTML = `
+                                <span>${topologyName}${optimalText}</span>
+                                <div class="rate-bar">
+                                    <div class="rate-fill" style="width: ${rate}%"></div>
+                                </div>
+                                <span class="rate-text">${rate}%</span>
+                            `;
+                            
+                            ratesList.appendChild(rateItem);
+                        });
+                    
+                        ratesDiv.style.display = 'block';
+                    } else {
+                        console.error('Success rates not found in response');
+                    }
+                } else {
+                    errorDiv.textContent = 'Error: ' + data.error;
+                    errorDiv.style.display = 'block';
+                }
+            })
+            .catch(error => {
+                clearTimeout(timeoutId);
+                loading.style.display = 'none';
+                button.disabled = false;
+                
+                let errorMessage = 'Network error: ';
+                if (error.name === 'AbortError') {
+                    errorMessage += 'Request timed out. Please try with fewer devices or episodes.';
+                } else {
+                    errorMessage += error.message;
+                }
+                
+                errorDiv.textContent = errorMessage;
+                errorDiv.style.display = 'block';
+                console.error('Fetch error:', error);
+            });
+        }
+        
+        function updateNetwork(networkData) {
+            console.log('Updating network with data:', networkData);
+            const container = document.getElementById('network');
+            
+            // Clear any existing network
+            if (network) {
+                network.destroy();
+                network = null;
+            }
+            
+            // Ensure container is visible
+            container.style.display = 'block';
+            
+            // Convert data to vis.js format
+            const nodes = new vis.DataSet(networkData.nodes || []);
+            const edges = new vis.DataSet(networkData.edges || []);
+            
+            const data = {
+                nodes: nodes,
+                edges: edges
+            };
+            
+            const options = {
+                physics: {
+                    enabled: false
+                },
+                layout: {
+                    hierarchical: {
+                        enabled: false
+                    }
+                },
+                nodes: {
+                    borderWidth: 2,
+                    borderColor: '#4a90e2',
+                    font: {
+                        color: 'white',
+                        size: 14,
+                        face: 'Arial'
+                    },
+                    chosen: true
+                },
+                edges: {
+                    color: {
+                        color: '#4a90e2',
+                        highlight: '#357abd'
+                    },
+                    width: 2,
+                    smooth: false
+                },
+                interaction: {
+                    dragNodes: true,
+                    dragView: true,
+                    zoomView: true
+                }
+            };
+            
+            try {
+                // Create new network
+                network = new vis.Network(container, data, options);
+                console.log('Network created successfully');
+                
+                // Fit the network to the container after a short delay
+                setTimeout(() => {
+                    if (network) {
+                        network.fit({
+                            animation: {
+                                duration: 1000,
+                                easingFunction: 'easeInOutQuad'
+                            }
+                        });
+                    }
+                }, 200);
+                
+            } catch (error) {
+                console.error('Error creating network:', error);
+            }
+        }
+        
+        function hideWelcome() {
+            document.getElementById('welcome-screen').style.display = 'none';
+        }
+        
+
+        
+        function validateInputs() {
+            const servers = parseInt(document.getElementById('servers').value);
+            const switches = parseInt(document.getElementById('switches').value);
+            const routers = parseInt(document.getElementById('routers').value);
+            const endDevices = parseInt(document.getElementById('end_devices').value);
+            
+            const total = servers + switches + routers + endDevices;
+            
+            if (total === 0) {
+                const errorDiv = document.getElementById('error-message');
+                errorDiv.textContent = 'Please set at least one device to generate a network.';
+                errorDiv.style.display = 'block';
+                return false;
+            }
+            
+            if (total === 1) {
+                const errorDiv = document.getElementById('error-message');
+                errorDiv.textContent = 'Please set at least 2 devices to create connections.';
+                errorDiv.style.display = 'block';
+                return false;
+            }
+            
+            return true;
+        }
+    </script>
+</body>
+</html>
