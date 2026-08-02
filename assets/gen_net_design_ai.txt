@@ -1,0 +1,455 @@
+from __future__ import annotations
+import json
+import math
+import random
+import webbrowser
+import os
+from dataclasses import dataclass
+from typing import Dict, List, Tuple, Optional
+import networkx as nx
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from pyvis.network import Network
+
+def make_nodes(devices: List[Tuple[str, int]]) -> List[Tuple[int, str]]:
+    nodes = []
+    nid = 0
+    for t, c in devices:
+        for _ in range(c):
+            nodes.append((nid, t))
+            nid += 1
+    return nodes
+
+@dataclass
+class Constraints:
+    must_be_tree: bool = False
+    must_be_connected: bool = True
+    servers_connect_only_to_switches: bool = False
+
+    @staticmethod
+    def from_strings(constraints: List[str]) -> "Constraints":
+        c = Constraints()
+        for s in constraints:
+            s_low = s.strip().lower()
+            if "tree" in s_low:
+                c.must_be_tree = True
+            if "connected" in s_low:
+                c.must_be_connected = True
+            if "server" in s_low and "switch" in s_low:
+                c.servers_connect_only_to_switches = True
+        if c.must_be_tree:
+            c.must_be_connected = True
+        return c
+
+class GraphEnv:
+    def __init__(self, devices: List[Tuple[str, int]], constraints: Constraints, max_steps: Optional[int] = None):
+        self.nodes = make_nodes(devices)
+        self.type_of = {i: t for i, t in self.nodes}
+        self.n = len(self.nodes)
+        self.G = nx.Graph()
+        self.G.add_nodes_from([i for i, _ in self.nodes])
+        self.constraints = constraints
+        self.steps = 0
+        self.max_steps = max_steps or (self.n * 2)
+        self.done = False
+
+    def _edge_respects_type_rules(self, u: int, v: int) -> bool:
+        if not self.constraints.servers_connect_only_to_switches:
+            return True
+        tu, tv = self.type_of[u], self.type_of[v]
+        if tu == "Server" and tv != "Switch":
+            return False
+        if tv == "Server" and tu != "Switch":
+            return False
+        return True
+    
+    def _ensure_server_switch_connections(self):
+        servers = [i for i, t in self.nodes if t == "Server"]
+        switches = [i for i, t in self.nodes if t == "Switch"]
+        for server in servers:
+            for switch in switches:
+                if not self.G.has_edge(server, switch):
+                    self.G.add_edge(server, switch)
+
+    def _edge_keeps_tree_property(self, u: int, v: int) -> bool:
+        if not self.constraints.must_be_tree:
+            return True
+        return not nx.has_path(self.G, u, v)
+
+    def valid_actions(self) -> List[Tuple[int, int]]:
+        opts = []
+        for u in range(self.n):
+            for v in range(u + 1, self.n):
+                if self.G.has_edge(u, v):
+                    continue
+                if not self._edge_respects_type_rules(u, v):
+                    continue
+                if not self._edge_keeps_tree_property(u, v):
+                    continue
+                opts.append((u, v))
+        return opts
+
+    def step(self, action: Tuple[int, int]):
+        if self.done:
+            raise RuntimeError("Episode already done")
+        u, v = action
+        self.G.add_edge(u, v)
+        self.steps += 1
+        reward, terminal, info = self._evaluate()
+        self.done = terminal
+        return self._state(), reward, terminal, info
+
+    def _state(self):
+        degs = {i: self.G.degree(i) for i in self.G.nodes}
+        type_map = {"Server": 0, "Router": 1, "Switch": 2, "EndDevice": 3}
+        features = []
+        for i in range(self.n):
+            tvec = [0, 0, 0, 0]
+            tvec[type_map.get(self.type_of[i], 1)] = 1
+            features.append([degs[i]] + tvec)
+        return torch.tensor(features, dtype=torch.float32)
+
+    def _evaluate(self) -> Tuple[float, bool, Dict]:
+        reward = 0.0
+        reward += 0.05 * sum(1 for _ in nx.connected_components(self.G)) ** -1
+        terminal = False
+        info = {}
+        if self.constraints.must_be_tree:
+            if nx.is_forest(self.G):
+                if self.G.number_of_edges() == self.n - 1 and nx.is_connected(self.G):
+                    reward += 1.0
+                    terminal = True
+                    info["status"] = "success_tree"
+            else:
+                reward -= 0.5
+        elif self.constraints.must_be_connected:
+            if nx.is_connected(self.G) and self.G.number_of_edges() >= self.n - 1:
+                reward += 0.7
+                terminal = True
+                info["status"] = "success_connected"
+        if self.steps >= self.max_steps:
+            terminal = True
+            info["status"] = info.get("status", "max_steps")
+            if not (nx.is_connected(self.G) if self.constraints.must_be_connected else True):
+                reward -= 0.2
+        return reward, terminal, info
+
+    def reset(self):
+        self.G = nx.Graph()
+        self.G.add_nodes_from([i for i, _ in self.nodes])
+        if self.constraints.servers_connect_only_to_switches:
+            self._ensure_server_switch_connections()
+        self.steps = 0
+        self.done = False
+        return self._state()
+
+class EdgePolicy(nn.Module):
+    def __init__(self, node_feat_dim=5, hidden=64):
+        super().__init__()
+        self.node_mlp = nn.Sequential(
+            nn.Linear(node_feat_dim, hidden), nn.ReLU(),
+            nn.Linear(hidden, hidden), nn.ReLU()
+        )
+        self.edge_mlp = nn.Sequential(
+            nn.Linear(hidden * 3, hidden), nn.ReLU(),
+            nn.Linear(hidden, 1)
+        )
+
+    def forward(self, node_feats: torch.Tensor, pairs: List[Tuple[int, int]]):
+        H = self.node_mlp(node_feats)
+        e_feats = []
+        for u, v in pairs:
+            hu, hv = H[u], H[v]
+            e_feats.append(torch.cat([hu, hv, torch.abs(hu - hv)], dim=-1))
+        E = torch.stack(e_feats, dim=0) if e_feats else torch.zeros((0, H.shape[1] * 3))
+        scores = self.edge_mlp(E).squeeze(-1)
+        return scores
+
+@dataclass
+class Episode:
+    logps: List[torch.Tensor]
+    rewards: List[float]
+
+def select_action(policy: EdgePolicy, state: torch.Tensor, valid_edges: List[Tuple[int, int]], training=True):
+    if not valid_edges:
+        return None, None
+    scores = policy(state, valid_edges)
+    probs = torch.softmax(scores, dim=0)
+    m = torch.distributions.Categorical(probs)
+    idx = m.sample()
+    logp = m.log_prob(idx)
+    action = valid_edges[int(idx.item())]
+    return action, logp
+
+def run_episode(env: GraphEnv, policy: EdgePolicy, gamma=0.99) -> Tuple[Episode, nx.Graph, Dict]:
+    state = env.reset()
+    ep_logps, ep_rewards = [], []
+    info_final = {}
+    while True:
+        valid_edges = env.valid_actions()
+        if not valid_edges:
+            _, r, term, info = env._evaluate()
+            ep_rewards.append(r)
+            info_final = info
+            break
+        action, logp = select_action(policy, state, valid_edges)
+        if action is None:
+            break
+        state, reward, done, info = env.step(action)
+        ep_logps.append(logp)
+        ep_rewards.append(reward)
+        if done:
+            info_final = info
+            break
+    return Episode(ep_logps, ep_rewards), env.G.copy(), info_final
+
+def calculate_topology_success_rates(servers, switches, routers, end_devices):
+    total_devices = servers + switches + routers + end_devices
+    device_diversity = sum([1 for count in [servers, switches, routers, end_devices] if count > 0])
+    rates = {}
+    base_star = 70
+    if servers > 0:
+        base_star += 15
+    if total_devices <= 5:
+        base_star += 10
+    elif total_devices > 8:
+        base_star -= 20
+    rates['star'] = min(95, max(30, base_star))
+    base_ring = 60
+    if servers == 0 and switches == 0:
+        base_ring += 25
+    if 4 <= total_devices <= 8:
+        base_ring += 15
+    elif total_devices < 3:
+        base_ring -= 30
+    if device_diversity <= 2:
+        base_ring += 10
+    rates['ring'] = min(95, max(25, base_ring))
+    base_mesh = 50
+    if total_devices >= 8:
+        base_mesh += 35
+    elif total_devices >= 6:
+        base_mesh += 20
+    elif total_devices <= 3:
+        base_mesh -= 25
+    if device_diversity >= 3:
+        base_mesh += 10
+    rates['mesh'] = min(95, max(20, base_mesh))
+    base_tree = 55
+    if servers > 0 and switches > 0:
+        base_tree += 25
+    if routers > 0 or end_devices > 0:
+        base_tree += 15
+    if device_diversity >= 3:
+        base_tree += 15
+    elif device_diversity == 1:
+        base_tree -= 20
+    rates['tree'] = min(95, max(35, base_tree))
+    base_bus = 65
+    if total_devices <= 4:
+        base_bus += 15
+    elif total_devices > 7:
+        base_bus -= 25
+    if device_diversity == 1:
+        base_bus += 10
+    elif device_diversity >= 3:
+        base_bus -= 15
+    rates['bus'] = min(90, max(25, base_bus))
+    base_hybrid = 70
+    if 4 <= total_devices <= 8:
+        base_hybrid += 15
+    if device_diversity >= 2:
+        base_hybrid += 10
+    if servers > 0:
+        base_hybrid += 5
+    rates['hybrid'] = min(90, max(45, base_hybrid))
+    return rates
+
+def generate_topology(devices, topology_type):
+    nodes = make_nodes(devices)
+    node_types = {i: t for i, t in nodes}
+    G = nx.Graph()
+    G.add_nodes_from([i for i, _ in nodes])
+    all_nodes = [i for i, _ in nodes]
+    n = len(all_nodes)
+    if topology_type == "star":
+        center = all_nodes[0]
+        for node in all_nodes[1:]:
+            G.add_edge(center, node)
+    elif topology_type == "ring":
+        for i in range(n):
+            G.add_edge(all_nodes[i], all_nodes[(i + 1) % n])
+    elif topology_type == "mesh":
+        for i in range(n):
+            for j in range(i + 1, n):
+                G.add_edge(all_nodes[i], all_nodes[j])
+    elif topology_type == "tree":
+        servers = [i for i, t in node_types.items() if t == "Server"]
+        switches = [i for i, t in node_types.items() if t == "Switch"]
+        routers = [i for i, t in node_types.items() if t == "Router"]
+        end_devices = [i for i, t in node_types.items() if t == "EndDevice"]
+        for switch in switches:
+            for server in servers:
+                G.add_edge(server, switch)
+        lower_devices = routers + end_devices
+        for i, switch in enumerate(switches):
+            if i < len(lower_devices):
+                G.add_edge(switch, lower_devices[i])
+        remaining_devices = []
+        if len(servers) > len(switches):
+            remaining_devices.extend(servers[len(switches):])
+        if len(switches) > len(lower_devices):
+            remaining_devices.extend(switches[len(lower_devices):])
+        if len(lower_devices) > len(switches):
+            remaining_devices.extend(lower_devices[len(switches):])
+        for device in remaining_devices:
+            if all_nodes:
+                G.add_edge(device, all_nodes[0])
+    elif topology_type == "bus":
+        for i in range(n - 1):
+            G.add_edge(all_nodes[i], all_nodes[i + 1])
+    elif topology_type == "hybrid":
+        servers = [i for i, t in node_types.items() if t == "Server"]
+        switches = [i for i, t in node_types.items() if t == "Switch"]
+        routers = [i for i, t in node_types.items() if t == "Router"]
+        end_devices = [i for i, t in node_types.items() if t == "EndDevice"]
+        if n >= 4:
+            hub_size = min(3, n // 2)
+            center = all_nodes[0]
+            for i in range(1, hub_size + 1):
+                if i < n:
+                    G.add_edge(center, all_nodes[i])
+            remaining = all_nodes[hub_size + 1:]
+            if len(remaining) >= 2:
+                for i in range(len(remaining)):
+                    G.add_edge(remaining[i], remaining[(i + 1) % len(remaining)])
+                if remaining:
+                    G.add_edge(all_nodes[1], remaining[0])
+        else:
+            center = all_nodes[0]
+            for node in all_nodes[1:]:
+                G.add_edge(center, node)
+        lower_devices = routers + end_devices
+        for i, switch in enumerate(switches):
+            if lower_devices and i < len(lower_devices):
+                G.add_edge(switch, lower_devices[i])
+    return G, node_types
+
+def train_policy(devices, constraints, episodes=100, lr=1e-3):
+    env = GraphEnv(devices, constraints)
+    policy = EdgePolicy()
+    optimizer = optim.Adam(policy.parameters(), lr=lr)
+    if constraints.servers_connect_only_to_switches:
+        env._ensure_server_switch_connections()
+    best_graph = None
+    best_reward = float('-inf')
+    for ep in range(episodes):
+        episode, graph, info = run_episode(env, policy)
+        returns = []
+        G = 0
+        for r in reversed(episode.rewards):
+            G = r + 0.99 * G
+            returns.insert(0, G)
+        if episode.logps:
+            returns = torch.tensor(returns, dtype=torch.float32)
+            if len(returns) > 1:
+                returns = (returns - returns.mean()) / (returns.std() + 1e-8)
+            policy_loss = []
+            for logp, ret in zip(episode.logps, returns):
+                policy_loss.append(-logp * ret)
+            optimizer.zero_grad()
+            loss = torch.stack(policy_loss).sum()
+            loss.backward()
+            optimizer.step()
+        total_reward = sum(episode.rewards)
+        if total_reward > best_reward:
+            best_reward = total_reward
+            best_graph = graph
+        if ep % 20 == 0:
+            print(f"Episode {ep}: Reward={total_reward:.3f}, Status={info.get('status', 'unknown')}")
+    return policy, best_graph, best_reward
+
+def visualize_graph(graph, node_types, filename="network.html"):
+    net = Network(height="800px", width="100%", bgcolor="#222222", font_color="white")
+    images = {
+        "Server": "assets/server.png",
+        "Router": "assets/router.png", 
+        "Switch": "assets/switch.png",
+        "EndDevice": "assets/desktop.png"
+    }
+    hierarchy_levels = {
+        "Server": -400,
+        "Switch": -200,
+        "Router": 0,
+        "EndDevice": 200
+    }
+    nodes_by_type = {"Server": [], "Switch": [], "Router": [], "EndDevice": []}
+    for node in graph.nodes():
+        node_type = node_types.get(node, "Unknown")
+        if node_type in nodes_by_type:
+            nodes_by_type[node_type].append(node)
+    for node in graph.nodes():
+        node_type = node_types.get(node, "Unknown")
+        image_path = images.get(node_type)
+        y_pos = hierarchy_levels.get(node_type, 0)
+        type_nodes = nodes_by_type.get(node_type, [node])
+        x_spacing = 150
+        x_offset = (len(type_nodes) - 1) * x_spacing / 2
+        x_pos = (type_nodes.index(node) * x_spacing) - x_offset
+        if image_path:
+            net.add_node(node, 
+                        label=f"{node_type}\n{node}", 
+                        image=image_path,
+                        shape="image",
+                        size=40,
+                        x=x_pos,
+                        y=y_pos,
+                        physics=False)
+        else:
+            net.add_node(node, 
+                        label=f"{node_type}\n{node}", 
+                        color="#gray", 
+                        size=30,
+                        x=x_pos,
+                        y=y_pos,
+                        physics=False)
+    for edge in graph.edges():
+        net.add_edge(edge[0], edge[1], width=2)
+    net.set_options("""
+    var options = {
+      "physics": {
+        "enabled": false
+      },
+      "layout": {
+        "hierarchical": {
+          "enabled": false
+        }
+      }
+    }
+    """)
+    net.save_graph(filename)
+    print(f"Network visualization saved to {filename}")
+    return filename
+
+if __name__ == "__main__":
+    devices = [("Server", 3), ("Switch", 2), ("Router", 2), ("EndDevice", 2)]
+    constraints = Constraints.from_strings(["connected", "server switch"])
+    print("Training network design AI...")
+    policy, best_graph, best_reward = train_policy(devices, constraints, episodes=100)
+    print(f"\nBest network found with reward: {best_reward:.3f}")
+    print(f"Nodes: {best_graph.number_of_nodes()}, Edges: {best_graph.number_of_edges()}")
+    print(f"Connected: {nx.is_connected(best_graph)}")
+    nodes = make_nodes(devices)
+    node_types = {i: t for i, t in nodes}
+    html_file = visualize_graph(best_graph, node_types)
+    network_data = {
+        "nodes": [{"id": i, "type": t} for i, t in nodes],
+        "edges": list(best_graph.edges())
+    }
+    with open("best_network.json", "w") as f:
+        json.dump(network_data, f, indent=2)
+    print("Network data saved to best_network.json")
+    html_path = os.path.abspath(html_file)
+    print(f"Opening visualization in browser...")
+    webbrowser.open(f"file:///{html_path}")

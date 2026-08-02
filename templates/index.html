@@ -398,7 +398,13 @@
 <body>
     <div class="container">
         <div class="sidebar">
-            <h2 style="margin-bottom: 30px; text-align: center; color: #4a90e2;">Network Parameters</h2>
+            <h2 style="margin-bottom: 20px; text-align: center; color: #4a90e2;">Network Parameters</h2>
+            
+            <!-- Navigation Tabs (Task 4) -->
+            <div class="tabs" style="display: flex; margin-bottom: 25px; border-bottom: 2px solid rgba(255,255,255,0.1);">
+                <button id="tab-design" class="tab-btn active" style="flex: 1; padding: 10px; background: none; border: none; color: white; border-bottom: 3px solid #4a90e2; font-weight: bold; cursor: pointer; outline: none;" onclick="switchTab('design')">Designer</button>
+                <button id="tab-compare" class="tab-btn" style="flex: 1; padding: 10px; background: none; border: none; color: #aaa; border-bottom: 3px solid transparent; font-weight: bold; cursor: pointer; outline: none;" onclick="switchTab('compare')">Compare</button>
+            </div>
             
             <div class="form-group">
                 <label for="servers">Servers</label>
@@ -419,50 +425,86 @@
                 <label for="end_devices">End Devices</label>
                 <input type="number" id="end_devices" min="0" max="10" value="0">
             </div>
-            
-            <div class="form-group">
-                <label for="topology">Network Topology</label>
-                <select id="topology">
-                    <option value="hybrid">Hybrid</option>
-                    <option value="star">Star</option>
-                    <option value="ring">Ring</option>
-                    <option value="mesh">Mesh</option>
-                    <option value="tree">Tree</option>
-                    <option value="bus">Bus</option>
-                    <option value="random">Random</option>
-                </select>
-            </div>
-            
 
-            
-            <button class="generate-btn" onclick="generateNetwork()">
-                🚀 Generate Network
-            </button>
-            
-            <div id="error-message" class="error" style="display: none;"></div>
-            
-            <div class="stats" id="stats" style="display: none;">
-                <h3>Network Statistics</h3>
-                <div class="stat-item">
-                    <span>Total Nodes:</span>
-                    <span id="nodes">-</span>
+            <!-- Panel 1: Designer View -->
+            <div id="design-panel">
+                <div class="form-group">
+                    <label for="topology">Network Topology</label>
+                    <select id="topology">
+                        <option value="hybrid">Hybrid</option>
+                        <option value="star">Star</option>
+                        <option value="ring">Ring</option>
+                        <option value="mesh">Mesh</option>
+                        <option value="tree">Tree</option>
+                        <option value="bus">Bus</option>
+                        <option value="random">Random</option>
+                        <option value="rl">🤖 AI — Reinforcement Learning</option>
+                    </select>
                 </div>
-                <div class="stat-item">
-                    <span>Total Edges:</span>
-                    <span id="edges">-</span>
+                
+                <button class="generate-btn" onclick="generateNetwork()">
+                    🚀 Generate Network
+                </button>
+                
+                <div id="error-message" class="error" style="display: none;"></div>
+                
+                <div class="stats" id="stats" style="display: none;">
+                    <h3>Network Statistics</h3>
+                    <div class="stat-item">
+                        <span>Total Nodes:</span>
+                        <span id="nodes">-</span>
+                    </div>
+                    <div class="stat-item">
+                        <span>Total Edges:</span>
+                        <span id="edges">-</span>
+                    </div>
+                    <div class="stat-item">
+                        <span>Connected:</span>
+                        <span id="connected">-</span>
+                    </div>
                 </div>
-                <div class="stat-item">
-                    <span>Connected:</span>
-                    <span id="connected">-</span>
+                
+                <div class="success-rates" id="success-rates" style="display: none;">
+                    <h3>📊 Topology Suitability Scores</h3>
+                    <p style="font-size:0.78em; color:#aaa; margin-bottom:8px;">Measured from actual graph structure: connectivity, density, avg path length.</p>
+                    <div id="rates-list"></div>
                 </div>
             </div>
-            
-            <div class="success-rates" id="success-rates" style="display: none;">
-                <h3>📊 Topology Success Rates</h3>
-                <div id="rates-list"></div>
-            </div>
-            
 
+            <!-- Panel 2: Live Multi-baseline Comparison (Task 4) -->
+            <div id="compare-panel" style="display: none;">
+                <p style="font-size: 0.85em; color: #bbb; line-height: 1.4; margin-bottom: 15px;">
+                    Compare the trained multi-objective Reinforcement Learning (RL) agent side-by-side with classical and deterministic network topology baselines.
+                </p>
+                
+                <button class="generate-btn" style="background: linear-gradient(135deg, #27ae60, #2ecc71);" onclick="runComparison()">
+                    📊 Run Comparison Sweep
+                </button>
+                
+                <div id="comparison-results" style="display: none; margin-top: 25px;">
+                    <h3 style="color: #4a90e2; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px; margin-bottom: 15px; font-size: 1.05rem;">Comparison Metrics</h3>
+                    <div style="overflow-x: auto;">
+                        <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.85rem; color: #e0e0e0;">
+                            <thead>
+                                <tr style="border-bottom: 2px solid rgba(255,255,255,0.2);">
+                                    <th style="padding: 8px 4px;">Method</th>
+                                    <th style="padding: 8px 4px; text-align: center;">Success</th>
+                                    <th style="padding: 8px 4px; text-align: right;">Cost</th>
+                                    <th style="padding: 8px 4px; text-align: right;">Resilience</th>
+                                </tr>
+                            </thead>
+                            <tbody id="comparison-table-body">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div style="margin-top: 20px; padding: 12px; border-left: 3px solid #27ae60; background: rgba(39, 174, 96, 0.08); border-radius: 0 4px 4px 0; font-size: 0.8em; line-height: 1.4; color: #ddd;">
+                        <strong>🔑 Pareto Tradeoff Key:</strong><br>
+                        RL policy (lambda_cost=0.3) is trained to find a robust mid-point: lower cost than Heuristic, but far more resilient than MST.
+                    </div>
+                </div>
+            </div>
         </div>
         
         <div class="main-content">
@@ -515,7 +557,7 @@
                 <div id="network"></div>
                 <div id="loading" class="loading" style="display: none;">
                     <div class="spinner"></div>
-                    <p>Training AI and generating network...</p>
+                    <p id="loading-text">Generating network...</p>
                 </div>
             </div>
         </div>
@@ -540,7 +582,11 @@
             const ratesDiv = document.getElementById('success-rates');
             const topologyHeader = document.getElementById('topology-header');
             
-            // Show loading
+            // Show loading with honest text
+            const isRL = document.getElementById('topology').value === 'rl';
+            document.getElementById('loading-text').textContent = isRL
+                ? '🤖 Training RL policy and generating network...'
+                : 'Generating network...';
             button.disabled = true;
             loading.style.display = 'block';
             errorDiv.style.display = 'none';
@@ -735,7 +781,118 @@
             document.getElementById('welcome-screen').style.display = 'none';
         }
         
-
+        function switchTab(tab) {
+            const designTab = document.getElementById('tab-design');
+            const compareTab = document.getElementById('tab-compare');
+            const designPanel = document.getElementById('design-panel');
+            const comparePanel = document.getElementById('compare-panel');
+            const welcomeScreen = document.getElementById('welcome-screen');
+            const networkContainer = document.getElementById('network');
+            const topologyHeader = document.getElementById('topology-header');
+            const statsDiv = document.getElementById('stats');
+            const ratesDiv = document.getElementById('success-rates');
+            
+            // Clear any active errors
+            document.getElementById('error-message').style.display = 'none';
+            
+            if (tab === 'design') {
+                designTab.style.color = 'white';
+                designTab.style.borderBottom = '3px solid #4a90e2';
+                compareTab.style.color = '#aaa';
+                compareTab.style.borderBottom = '3px solid transparent';
+                designPanel.style.display = 'block';
+                comparePanel.style.display = 'none';
+            } else {
+                compareTab.style.color = 'white';
+                compareTab.style.borderBottom = '3px solid #4a90e2';
+                designTab.style.color = '#aaa';
+                designTab.style.borderBottom = '3px solid transparent';
+                designPanel.style.display = 'none';
+                comparePanel.style.display = 'block';
+                
+                // Hide stats since comparison has its own table
+                statsDiv.style.display = 'none';
+                ratesDiv.style.display = 'none';
+            }
+        }
+        
+        function runComparison() {
+            if (!validateInputs()) {
+                return;
+            }
+            
+            const loading = document.getElementById('loading');
+            const errorDiv = document.getElementById('error-message');
+            const compResults = document.getElementById('comparison-results');
+            const welcomeScreen = document.getElementById('welcome-screen');
+            const networkDiv = document.getElementById('network');
+            const topologyHeader = document.getElementById('topology-header');
+            
+            welcomeScreen.style.display = 'none';
+            networkDiv.style.display = 'none';
+            topologyHeader.style.display = 'none';
+            
+            document.getElementById('loading-text').textContent = '🤖 Running multi-baseline comparison sweep...';
+            loading.style.display = 'block';
+            errorDiv.style.display = 'none';
+            compResults.style.display = 'none';
+            
+            const params = {
+                servers: parseInt(document.getElementById('servers').value),
+                switches: parseInt(document.getElementById('switches').value),
+                routers: parseInt(document.getElementById('routers').value),
+                end_devices: parseInt(document.getElementById('end_devices').value)
+            };
+            
+            fetch('/compare', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(params)
+            })
+            .then(response => response.json())
+            .then(data => {
+                loading.style.display = 'none';
+                if (data.success) {
+                    const tbody = document.getElementById('comparison-table-body');
+                    tbody.innerHTML = '';
+                    
+                    const methods = {
+                        'rl': { name: '🤖 RL Agent', color: '#4a90e2' },
+                        'mst': { name: 'MST Baseline', color: '#ff4d4d' },
+                        'hybrid': { name: 'Heuristic Hybrid', color: '#ffaa00' },
+                        'random': { name: 'Random Selection', color: '#888888' }
+                    };
+                    
+                    Object.entries(methods).forEach(([key, info]) => {
+                        const res = data.results[key];
+                        if (res) {
+                            const tr = document.createElement('tr');
+                            tr.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
+                            tr.innerHTML = `
+                                <td style="padding: 10px 4px; font-weight: bold; color: ${info.color}">${info.name}</td>
+                                <td style="padding: 10px 4px; text-align: center;">${(res.success_rate * 100).toFixed(0)}%</td>
+                                <td style="padding: 10px 4px; text-align: right;">$${res.cost.toFixed(1)}</td>
+                                <td style="padding: 10px 4px; text-align: right;">${(res.resilience * 100).toFixed(1)}%</td>
+                            `;
+                            tbody.appendChild(tr);
+                        }
+                    });
+                    
+                    compResults.style.display = 'block';
+                } else {
+                    errorDiv.textContent = 'Comparison Error: ' + data.error;
+                    errorDiv.style.display = 'block';
+                }
+            })
+            .catch(error => {
+                loading.style.display = 'none';
+                errorDiv.textContent = 'Comparison network error: ' + error.message;
+                errorDiv.style.display = 'block';
+                console.error(error);
+            });
+        }
         
         function validateInputs() {
             const servers = parseInt(document.getElementById('servers').value);

@@ -1,56 +1,86 @@
-# NetGen - AI-Powered Network Design Generator
+# NetGen — AI-Powered Network Design Generator
 
-Generative AI for automated network topology design using reinforcement learning.
+Automated network topology design using reinforcement learning (REINFORCE).
 
-## Features
+## Architecture
 
-- **Constraint-based Design**: Supports tree topology, connectivity, and device-specific rules
-- **Device Types**: Servers, Routers, Switches with customizable connection rules
-- **AI Learning**: REINFORCE algorithm learns optimal network topologies
-- **Interactive Visualization**: PyVis-powered network diagrams with custom device images
-- **Export Options**: JSON and HTML outputs for further analysis
+NetGen has two operational modes:
+
+| Mode | Entry point | How it works |
+|------|-------------|--------------|
+| **Web app** | `app.py` | Six deterministic topology generators **plus** an RL mode that runs REINFORCE to construct a connected graph edge-by-edge. Policies are cached on disk and reloaded automatically. |
+| **Standalone** | `gen_net_design_ai.py` | Trains from scratch, compares against a random-policy baseline, saves training curves, and opens a PyVis visualization. |
 
 ## Quick Start
 
-1. **Install Dependencies**:
 ```bash
-pip install networkx torch pyvis
-```
+# Install all dependencies
+pip install flask networkx torch pyvis matplotlib
 
-2. **Run the Generator**:
-```bash
+# Run the web app
+python app.py
+# Open: http://localhost:5000
+
+# Or run the standalone RL training demo
 python gen_net_design_ai.py
 ```
 
-3. **View Results**:
-   - Open `network_visualization.html` in your browser
-   - Check `best_network.json` for network data
+### Using the virtual environment (recommended)
 
-## Configuration
+```bash
+# One-time setup
+setup_venv.bat
 
-Modify the `main()` function to customize:
-- Device counts: `[("Server", 3), ("Router", 2), ("Switch", 2)]`
-- Constraints: `["tree", "connected", "servers_connect_only_to_switches"]`
-- Training epochs and learning parameters
-
-## Output
-
-The AI generates:
-- Optimal network topology respecting all constraints
-- Interactive visualization with custom device images
-- JSON export for integration with other tools
-
-## Example Network
-
+# Start a shell with the venv active, then run
+activate_venv.bat
+python app.py
 ```
-Server0 ──┐
-Server1 ──┤── Switch6 ──┐
-          │             │
-          └── Router4 ──┤── Switch5 ── Server2
-                        │
-                        └── Router3
+
+## Features
+
+- **RL mode**: REINFORCE policy gradient with entropy bonus and EMA baseline trains a graph-construction policy and caches it to `checkpoints/`
+- **Six topology types**: star, ring, mesh, tree, bus, hybrid (rule-based, deterministic)
+- **Real suitability scores**: computed from actual graph metrics — connectivity, edge density, average path length — not heuristics
+- **Training curves**: `training_curve.png` plots RL reward and success rate vs. random baseline
+
+## RL Implementation Details
+
+| Component | Detail |
+|-----------|--------|
+| Algorithm | REINFORCE (Monte-Carlo policy gradient) |
+| Baseline | Exponential moving average of episode returns (cross-episode variance reduction) |
+| Exploration | Entropy bonus `H(π)` in the loss; `entropy_coef=0.01` |
+| Policy | Node-embedding MLP → edge-scoring MLP over `[h_u, h_v, \|h_u−h_v\|]` |
+| State | Per-node features: degree + 4-dim device-type one-hot |
+
+## Hyperparameters
+
+All configurable as arguments to `train_policy()`:
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `episodes` | 200 | Training episodes |
+| `lr` | 1e-3 | Adam learning rate |
+| `gamma` | 0.99 | Discount factor |
+| `entropy_coef` | 0.01 | Entropy bonus weight |
+| `baseline_alpha` | 0.1 | EMA learning rate for the baseline |
+
+## Testing
+
+```bash
+pip install pytest
+pytest tests/test_netgen.py -v
 ```
+
+## Output Files
+
+| File | Description |
+|------|-------------|
+| `training_curve.png` | RL vs. random baseline reward and success rate |
+| `best_network.json` | Best graph found during standalone training |
+| `network.html` | Interactive PyVis visualization (standalone mode) |
+| `checkpoints/` | Persisted policy weights (`.pt` files), loaded on next request |
 
 ## License
 
-MIT License - Feel free to use and modify!
+MIT License — Feel free to use and modify!
